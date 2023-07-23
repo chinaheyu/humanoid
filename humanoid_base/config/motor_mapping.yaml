@@ -1,0 +1,5 @@
+/humanoid/humanoid_base:
+  ros__parameters:
+    motor_0: unknown
+    motor_1: unknown
+    motor_2: unknown
