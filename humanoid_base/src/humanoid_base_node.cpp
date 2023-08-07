@@ -15,10 +15,11 @@ HumanoidBaseNode::HumanoidBaseNode()
     : rclcpp::Node("humanoid_base",
                    rclcpp::NodeOptions()
                        .allow_undeclared_parameters(true)
-                       .automatically_declare_parameters_from_overrides(true)) {
+                       .automatically_declare_parameters_from_overrides(true)),
+      head_serial_{"unknown"} {
     assert(protocol_is_supported());
 
-    load_motor_mapping_parameters_();
+    load_parameters_();
 
     scan_device_timer_ = this->create_wall_timer(
         std::chrono::seconds(2),
@@ -33,6 +34,19 @@ HumanoidBaseNode::HumanoidBaseNode()
             "motor_control", rclcpp::SystemDefaultsQoS(),
             std::bind(&HumanoidBaseNode::motor_control_callback_, this,
                       std::placeholders::_1));
+    face_control_subscription_ =
+        this->create_subscription<humanoid_interface::msg::FaceControl>(
+            "face_control", rclcpp::SystemDefaultsQoS(),
+            std::bind(&HumanoidBaseNode::face_control_callback_, this,
+                      std::placeholders::_1));
+    neck_control_subscription_ =
+        this->create_subscription<humanoid_interface::msg::NeckControl>(
+            "neck_control", rclcpp::SystemDefaultsQoS(),
+            std::bind(&HumanoidBaseNode::neck_control_callback_, this,
+                      std::placeholders::_1));
+    head_feedback_publisher_ =
+        this->create_publisher<humanoid_interface::msg::HeadFeedback>(
+            "head_feedback", rclcpp::SensorDataQoS());
 
     // Initialize
     scan_device_();
@@ -58,6 +72,9 @@ void HumanoidBaseNode::dispatch_frame_(
                 get_message_<cmd_motor_feedback_t>(data)->position,
                 get_message_<cmd_motor_feedback_t>(data)->velocity,
                 get_message_<cmd_motor_feedback_t>(data)->torque);
+            break;
+        case CMD_HEAD_FEEDBACK:
+            publish_head_feedback_(data);
             break;
         default:
             break;
@@ -118,6 +135,22 @@ void HumanoidBaseNode::publish_motor_feedback_(long long timestamp, uint8_t id,
     motor_feedback_publisher_->publish(msg);
 }
 
+void HumanoidBaseNode::publish_head_feedback_(
+    std::shared_ptr<std::vector<uint8_t>>& data) {
+    humanoid_interface::msg::HeadFeedback msg;
+    msg.stamp =
+        rclcpp::Time(get_message_<cmd_head_feedback_t>(data)->timestamp * 1000,
+                     RCL_STEADY_TIME);
+    for (size_t i = 0; i < msg.pulse_width.size(); i++) {
+        msg.pulse_width[i] =
+            get_message_<cmd_head_feedback_t>(data)->pulse_width[i];
+    }
+    msg.pitch_velocity =
+        get_message_<cmd_head_feedback_t>(data)->pitch_velocity / 1000.0;
+    msg.yaw_angle = get_message_<cmd_head_feedback_t>(data)->yaw_angle / 1000.0;
+    head_feedback_publisher_->publish(msg);
+}
+
 template <typename T1, typename T2>
 inline const T1* HumanoidBaseNode::get_message_(T2 data) {
     assert(data->size() == sizeof(T1));
@@ -130,38 +163,85 @@ void HumanoidBaseNode::motor_control_callback_(
     std::unordered_map<uint8_t, std::string>::iterator it =
         motor_mapping_.find(msg->id);
     if (it != motor_mapping_.end()) {
-        if (msg->control_type ==
-            humanoid_interface::msg::MotorControl::MOTOR_MIT_CONTROL) {
-            cmd_motor_mit_t mit_msg;
-            mit_msg.id = msg->id;
-            mit_msg.position = msg->position * 1000;
-            mit_msg.velocity = msg->velocity * 1000;
-            mit_msg.torque = msg->torque * 1000;
-            mit_msg.kp = msg->kp * 1000;
-            mit_msg.kd = msg->kp * 1000;
-            serials_[it->second]->send_message_to_device(CMD_MOTOR_MIT,
-                                                         mit_msg);
-        }
-        if (msg->control_type ==
-            humanoid_interface::msg::MotorControl::MOTOR_POSITION_CONTROL) {
-            cmd_motor_position_t position_msg;
-            position_msg.id = msg->id;
-            position_msg.position = msg->position * 1000;
-            serials_[it->second]->send_message_to_device(CMD_MOTOR_POSITION,
-                                                         position_msg);
+        auto serial_ptr = serials_.find(it->second);
+        if (serial_ptr == serials_.end()) {
+            RCLCPP_ERROR_STREAM(this->get_logger(),
+                                "Serial device does not exist: " << it->second);
+        } else {
+            if (msg->control_type ==
+                humanoid_interface::msg::MotorControl::MOTOR_MIT_CONTROL) {
+                cmd_motor_mit_t mit_msg;
+                mit_msg.id = msg->id;
+                mit_msg.position = msg->position * 1000;
+                mit_msg.velocity = msg->velocity * 1000;
+                mit_msg.torque = msg->torque * 1000;
+                mit_msg.kp = msg->kp * 1000;
+                mit_msg.kd = msg->kp * 1000;
+                serial_ptr->second->send_message_to_device(CMD_MOTOR_MIT,
+                                                           mit_msg);
+            }
+            if (msg->control_type ==
+                humanoid_interface::msg::MotorControl::MOTOR_POSITION_CONTROL) {
+                cmd_motor_position_t position_msg;
+                position_msg.id = msg->id;
+                position_msg.position = msg->position * 1000;
+                serial_ptr->second->send_message_to_device(CMD_MOTOR_POSITION,
+                                                           position_msg);
+            }
         }
     }
 }
 
-void HumanoidBaseNode::load_motor_mapping_parameters_() {
+void HumanoidBaseNode::face_control_callback_(
+    const humanoid_interface::msg::FaceControl::SharedPtr msg) {
+    std::lock_guard<std::mutex> lock(serials_container_mutex_);
+    auto serial_ptr = serials_.find(head_serial_);
+    if (serial_ptr == serials_.end()) {
+        RCLCPP_ERROR_STREAM(this->get_logger(),
+                            "Serial device does not exist: " << head_serial_);
+    } else {
+        cmd_head_servo_t cmd;
+        for (size_t i = 0; i < msg->pulse_width.size(); ++i) {
+            cmd.pulse_width[i] = msg->pulse_width[i];
+        }
+        serial_ptr->second->send_message_to_device(CMD_HEAD_SERVO, cmd);
+    }
+}
+
+void HumanoidBaseNode::neck_control_callback_(
+    const humanoid_interface::msg::NeckControl::SharedPtr msg) {
+    std::lock_guard<std::mutex> lock(serials_container_mutex_);
+    auto serial_ptr = serials_.find(head_serial_);
+    if (serial_ptr == serials_.end()) {
+        RCLCPP_ERROR_STREAM(this->get_logger(),
+                            "Serial device does not exist: " << head_serial_);
+    } else {
+        cmd_neck_motor_t cmd;
+        cmd.pitch_velocity = msg->pitch_velocity * 1000;
+        cmd.yaw_angle = msg->yaw_angle * 1000;
+        cmd.yaw_max_velocity = msg->yaw_max_velocity * 1000;
+        serial_ptr->second->send_message_to_device(CMD_NECK_MOTOR, cmd);
+    }
+}
+
+void HumanoidBaseNode::load_parameters_() {
     std::lock_guard<std::mutex> lock(serials_container_mutex_);
     for (const auto& param : this->list_parameters({}, 1).names) {
+        // Load motor parameters
         if (param.rfind("motor_", 0) == 0) {
             uint8_t motor_id = static_cast<uint8_t>(std::stoi(param.substr(6)));
             motor_mapping_[motor_id] = param;
             RCLCPP_INFO_STREAM(
                 this->get_logger(),
                 CL_BOLDGREEN << "Load motor mapping: " << param << CL_RESET);
+        }
+
+        // Load head parameters
+        if (param.compare("head") == 0) {
+            head_serial_ = param;
+            RCLCPP_INFO_STREAM(
+                this->get_logger(),
+                CL_BOLDGREEN << "Load head mapping: " << param << CL_RESET);
         }
     }
 }
@@ -170,44 +250,71 @@ void HumanoidBaseNode::update_parameters_callback_(
     const rcl_interfaces::msg::ParameterEvent::SharedPtr msg) {
     std::lock_guard<std::mutex> lock(serials_container_mutex_);
 
-    // Update motor mapping
+    // Update parameters
     for (const auto& param : msg->new_parameters) {
         if (param.value.type ==
-                rcl_interfaces::msg::ParameterType::PARAMETER_STRING &&
-            param.name.rfind("motor_", 0) == 0) {
-            uint8_t motor_id =
-                static_cast<uint8_t>(std::stoi(param.name.substr(6)));
-            motor_mapping_[motor_id] = param.value.string_value;
-            RCLCPP_INFO_STREAM(this->get_logger(),
-                               CL_BOLDGREEN << "New motor mapping: "
-                                            << param.name << CL_RESET);
+            rcl_interfaces::msg::ParameterType::PARAMETER_STRING) {
+            // Update motor parameter
+            if (param.name.rfind("motor_", 0) == 0) {
+                uint8_t motor_id =
+                    static_cast<uint8_t>(std::stoi(param.name.substr(6)));
+                motor_mapping_[motor_id] = param.value.string_value;
+                RCLCPP_INFO_STREAM(this->get_logger(),
+                                   CL_BOLDGREEN << "New motor mapping: "
+                                                << param.name << CL_RESET);
+            }
+            // Update head parameter
+            if (param.name.compare("head") == 0) {
+                head_serial_ = param.value.string_value;
+                RCLCPP_INFO_STREAM(this->get_logger(),
+                                   CL_BOLDGREEN << "New head mapping: "
+                                                << head_serial_ << CL_RESET);
+            }
         }
     }
     for (const auto& param : msg->deleted_parameters) {
         if (param.value.type ==
-                rcl_interfaces::msg::ParameterType::PARAMETER_STRING &&
-            param.name.rfind("motor_", 0) == 0) {
-            uint8_t motor_id =
-                static_cast<uint8_t>(std::stoi(param.name.substr(6)));
-            motor_mapping_.erase(motor_id);
-            RCLCPP_INFO_STREAM(this->get_logger(),
-                               CL_BOLDGREEN << "Delete motor mapping: "
-                                            << param.name << CL_RESET);
+            rcl_interfaces::msg::ParameterType::PARAMETER_STRING) {
+            // Update motor parameter
+            if (param.name.rfind("motor_", 0) == 0) {
+                uint8_t motor_id =
+                    static_cast<uint8_t>(std::stoi(param.name.substr(6)));
+                motor_mapping_.erase(motor_id);
+                RCLCPP_INFO_STREAM(this->get_logger(),
+                                   CL_BOLDGREEN << "Delete motor mapping: "
+                                                << param.name << CL_RESET);
+            }
+            // Update head parameter
+            if (param.name.compare("head") == 0) {
+                head_serial_ = "unknown";
+                RCLCPP_INFO_STREAM(this->get_logger(),
+                                   CL_BOLDGREEN << "Delete head mapping: "
+                                                << head_serial_ << CL_RESET);
+            }
         }
     }
     for (const auto& param : msg->changed_parameters) {
         if (param.value.type ==
-                rcl_interfaces::msg::ParameterType::PARAMETER_STRING &&
-            param.name.rfind("motor_", 0) == 0) {
-            uint8_t motor_id =
-                static_cast<uint8_t>(std::stoi(param.name.substr(6)));
-            std::unordered_map<uint8_t, std::string>::iterator it =
-                motor_mapping_.find(motor_id);
-            if (it != motor_mapping_.end()) {
-                it->second = param.value.string_value;
+            rcl_interfaces::msg::ParameterType::PARAMETER_STRING) {
+            // Update motor parameter
+            if (param.name.rfind("motor_", 0) == 0) {
+                uint8_t motor_id =
+                    static_cast<uint8_t>(std::stoi(param.name.substr(6)));
+                std::unordered_map<uint8_t, std::string>::iterator it =
+                    motor_mapping_.find(motor_id);
+                if (it != motor_mapping_.end()) {
+                    it->second = param.value.string_value;
+                    RCLCPP_INFO_STREAM(this->get_logger(),
+                                       CL_BOLDGREEN << "Change motor mapping: "
+                                                    << param.name << CL_RESET);
+                }
+            }
+            // Update head parameter
+            if (param.name.compare("head") == 0) {
+                head_serial_ = param.value.string_value;
                 RCLCPP_INFO_STREAM(this->get_logger(),
-                                   CL_BOLDGREEN << "Change motor mapping: "
-                                                << param.name << CL_RESET);
+                                   CL_BOLDGREEN << "Change head mapping: "
+                                                << head_serial_ << CL_RESET);
             }
         }
     }

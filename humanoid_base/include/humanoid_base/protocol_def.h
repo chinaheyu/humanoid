@@ -35,6 +35,15 @@ typedef struct
     short torque;
 } cmd_motor_feedback_t;
 
+#define CMD_HEAD_FEEDBACK (0x0103)
+typedef struct 
+{
+    long long timestamp;
+    unsigned short pulse_width[11];
+    short pitch_velocity;
+    short yaw_angle;
+} cmd_head_feedback_t;
+
 #define CMD_MOTOR_MIT (0x0201)
 typedef struct 
 {
@@ -53,7 +62,20 @@ typedef struct
     short position;
 } cmd_motor_position_t;
 
-#pragma pack(pop)
+#define CMD_HEAD_SERVO (0x0203)
+typedef struct 
+{
+    unsigned short pulse_width[11];     // 500 ~ 2500
+} cmd_head_servo_t;
 
+#define CMD_NECK_MOTOR (0x0204)
+typedef struct 
+{
+    short pitch_velocity;
+    short yaw_angle;
+    short yaw_max_velocity;
+} cmd_neck_motor_t;
+
+#pragma pack(pop)
 
 #endif //PROTOCOL_PROTOCOL_DEF_H
