@@ -26,6 +26,8 @@ private:
     std::unordered_map<uint8_t, std::string> motor_mapping_;
     std::string head_serial_;
     rclcpp::TimerBase::ConstSharedPtr scan_device_timer_;
+    rclcpp::AsyncParametersClient::SharedPtr parameters_client_;
+    rclcpp::Subscription<rcl_interfaces::msg::ParameterEvent>::SharedPtr parameter_event_sub_;
     rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_publisher_;
     rclcpp::Subscription<humanoid_interface::msg::MotorControl>::SharedPtr
         motor_control_subscription_;

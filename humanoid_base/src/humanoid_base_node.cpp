@@ -19,6 +19,10 @@ HumanoidBaseNode::HumanoidBaseNode()
       head_serial_{"unknown"} {
     assert(protocol_is_supported());
 
+    parameters_client_ = std::make_shared<rclcpp::AsyncParametersClient>(this);
+    parameter_event_sub_ = parameters_client_->on_parameter_event(
+        std::bind(&HumanoidBaseNode::update_parameters_callback_, this,
+                  std::placeholders::_1));
     load_parameters_();
 
     scan_device_timer_ = this->create_wall_timer(
@@ -226,22 +230,26 @@ void HumanoidBaseNode::neck_control_callback_(
 
 void HumanoidBaseNode::load_parameters_() {
     std::lock_guard<std::mutex> lock(serials_container_mutex_);
-    for (const auto& param : this->list_parameters({}, 1).names) {
+    for (const auto& param_name : this->list_parameters({}, 1).names) {
         // Load motor parameters
-        if (param.rfind("motor_", 0) == 0) {
-            uint8_t motor_id = static_cast<uint8_t>(std::stoi(param.substr(6)));
-            motor_mapping_[motor_id] = param;
+        if (param_name.rfind("motor_", 0) == 0) {
+            uint8_t motor_id =
+                static_cast<uint8_t>(std::stoi(param_name.substr(6)));
+            motor_mapping_[motor_id] =
+                this->get_parameter(param_name).as_string();
             RCLCPP_INFO_STREAM(
                 this->get_logger(),
-                CL_BOLDGREEN << "Load motor mapping: " << param << CL_RESET);
+                CL_BOLDGREEN << "Load motor mapping: " << param_name << " -> "
+                             << motor_mapping_[motor_id] << CL_RESET);
         }
 
         // Load head parameters
-        if (param.compare("head") == 0) {
-            head_serial_ = param;
-            RCLCPP_INFO_STREAM(
-                this->get_logger(),
-                CL_BOLDGREEN << "Load head mapping: " << param << CL_RESET);
+        if (param_name.compare("head") == 0) {
+            head_serial_ = this->get_parameter(param_name).as_string();
+            RCLCPP_INFO_STREAM(this->get_logger(),
+                               CL_BOLDGREEN
+                                   << "Load head mapping: " << param_name
+                                   << " -> " << head_serial_ << CL_RESET);
         }
     }
 }
@@ -260,37 +268,38 @@ void HumanoidBaseNode::update_parameters_callback_(
                     static_cast<uint8_t>(std::stoi(param.name.substr(6)));
                 motor_mapping_[motor_id] = param.value.string_value;
                 RCLCPP_INFO_STREAM(this->get_logger(),
-                                   CL_BOLDGREEN << "New motor mapping: "
-                                                << param.name << CL_RESET);
+                                   CL_BOLDGREEN
+                                       << "New motor mapping: " << param.name
+                                       << " -> " << param.value.string_value
+                                       << CL_RESET);
             }
             // Update head parameter
             if (param.name.compare("head") == 0) {
                 head_serial_ = param.value.string_value;
                 RCLCPP_INFO_STREAM(this->get_logger(),
-                                   CL_BOLDGREEN << "New head mapping: "
-                                                << head_serial_ << CL_RESET);
+                                   CL_BOLDGREEN
+                                       << "New head mapping: " << head_serial_
+                                       << " -> " << param.value.string_value
+                                       << CL_RESET);
             }
         }
     }
     for (const auto& param : msg->deleted_parameters) {
-        if (param.value.type ==
-            rcl_interfaces::msg::ParameterType::PARAMETER_STRING) {
-            // Update motor parameter
-            if (param.name.rfind("motor_", 0) == 0) {
-                uint8_t motor_id =
-                    static_cast<uint8_t>(std::stoi(param.name.substr(6)));
-                motor_mapping_.erase(motor_id);
-                RCLCPP_INFO_STREAM(this->get_logger(),
-                                   CL_BOLDGREEN << "Delete motor mapping: "
-                                                << param.name << CL_RESET);
-            }
-            // Update head parameter
-            if (param.name.compare("head") == 0) {
-                head_serial_ = "unknown";
-                RCLCPP_INFO_STREAM(this->get_logger(),
-                                   CL_BOLDGREEN << "Delete head mapping: "
-                                                << head_serial_ << CL_RESET);
-            }
+        // Update motor parameter
+        if (param.name.rfind("motor_", 0) == 0) {
+            uint8_t motor_id =
+                static_cast<uint8_t>(std::stoi(param.name.substr(6)));
+            motor_mapping_.erase(motor_id);
+            RCLCPP_INFO_STREAM(this->get_logger(),
+                               CL_BOLDGREEN << "Delete motor mapping: "
+                                            << param.name << CL_RESET);
+        }
+        // Update head parameter
+        if (param.name.compare("head") == 0) {
+            head_serial_ = "unknown";
+            RCLCPP_INFO_STREAM(this->get_logger(),
+                               CL_BOLDGREEN << "Delete head mapping: "
+                                            << param.name << CL_RESET);
         }
     }
     for (const auto& param : msg->changed_parameters) {
@@ -304,17 +313,21 @@ void HumanoidBaseNode::update_parameters_callback_(
                     motor_mapping_.find(motor_id);
                 if (it != motor_mapping_.end()) {
                     it->second = param.value.string_value;
-                    RCLCPP_INFO_STREAM(this->get_logger(),
-                                       CL_BOLDGREEN << "Change motor mapping: "
-                                                    << param.name << CL_RESET);
+                    RCLCPP_INFO_STREAM(
+                        this->get_logger(),
+                        CL_BOLDGREEN << "Change motor mapping: " << param.name
+                                     << " -> " << param.value.string_value
+                                     << CL_RESET);
                 }
             }
             // Update head parameter
             if (param.name.compare("head") == 0) {
                 head_serial_ = param.value.string_value;
-                RCLCPP_INFO_STREAM(this->get_logger(),
-                                   CL_BOLDGREEN << "Change head mapping: "
-                                                << head_serial_ << CL_RESET);
+                RCLCPP_INFO_STREAM(
+                    this->get_logger(),
+                    CL_BOLDGREEN << "Change head mapping: " << head_serial_
+                                 << " -> " << param.value.string_value
+                                 << CL_RESET);
             }
         }
     }
