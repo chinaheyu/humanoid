@@ -26,7 +26,8 @@ class AzureSpeechService:
         self._speech_synthesising = False
         
         # init keyword model
-        self._keyword_recognizer = speechsdk.KeywordRecognizer()
+        audio_config = speechsdk.audio.AudioConfig(use_default_microphone=microphone_device is None, device_name=microphone_device)
+        self._keyword_recognizer = speechsdk.KeywordRecognizer(audio_config=audio_config)
     
     def _synthesis_stop(self, evt):
         self._speech_synthesising = False
