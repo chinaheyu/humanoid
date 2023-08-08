@@ -85,7 +85,7 @@ class ApiControlMotorRequest(BaseModel):
     }
 
 
-class ApiControlFaceRequest(BaseModel):
+class ApiFaceComponents(BaseModel):
     chin_up_down: int
     eyes_up_down: int
     eyes_left_right: int
@@ -97,7 +97,14 @@ class ApiControlFaceRequest(BaseModel):
     right_cheek_up_down: int
     left_lip_corner_push_pull: int
     right_lip_corner_push_pull: int
-    
+
+
+class ApiNeckComponents(BaseModel):
+    pitch_velocity: float
+    yaw_angle: float
+
+
+class ApiControlFaceRequest(ApiFaceComponents):
     model_config = {
         "json_schema_extra": {
             "examples": [
@@ -119,9 +126,7 @@ class ApiControlFaceRequest(BaseModel):
     }
 
 
-class ApiControlNeckRequest(BaseModel):
-    pitch_velocity: float
-    yaw_angle: float
+class ApiControlNeckRequest(ApiNeckComponents):
     yaw_max_velocity: float
     
     model_config = {
@@ -131,6 +136,37 @@ class ApiControlNeckRequest(BaseModel):
                     "pitch_velocity": 0.0,
                     "yaw_angle": 0.0,
                     "yaw_max_velocity": 3.14
+                }
+            ]
+        }
+    }
+
+
+class ApiHeadFeedbackResponse(BaseModel):
+    face: ApiFaceComponents
+    neck: ApiNeckComponents
+    
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "face": {
+                        "chin_up_down": 1500,
+                        "eyes_up_down": 1500,
+                        "eyes_left_right": 1500,
+                        "left_eyelid_up_down": 1500,
+                        "right_eyelid_up_down": 1500,
+                        "left_eyebrow_up_down": 1500,
+                        "right_eyebrow_up_down": 1500,
+                        "left_cheek_up_down": 1500,
+                        "right_cheek_up_down": 1500,
+                        "left_lip_corner_push_pull": 1500,
+                        "right_lip_corner_push_pull": 1500
+                    },
+                    "neck": {
+                        "pitch_velocity": 0.0,
+                        "yaw_angle": 0.0
+                    }
                 }
             ]
         }

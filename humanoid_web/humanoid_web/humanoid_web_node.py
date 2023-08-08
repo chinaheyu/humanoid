@@ -6,10 +6,24 @@ import uvicorn
 import threading
 from fastapi import FastAPI, HTTPException
 from .api_types import *
-from humanoid_interface.msg import MotorControl, MotorFeedback, FaceControl, NeckControl
+from humanoid_interface.msg import MotorControl, MotorFeedback, FaceControl, NeckControl, HeadFeedback
 
 
 class HumanoidWebNode(Node):
+    face_components = [
+        "chin_up_down",
+        "eyes_up_down",
+        "eyes_left_right",
+        "left_eyelid_up_down",
+        "right_eyelid_up_down",
+        "left_eyebrow_up_down",
+        "right_eyebrow_up_down",
+        "left_cheek_up_down",
+        "right_cheek_up_down",
+        "left_lip_corner_push_pull",
+        "right_lip_corner_push_pull"
+    ]
+    
     def __init__(self):
         # Initialize node
         super().__init__('humanoid_web')
@@ -17,16 +31,23 @@ class HumanoidWebNode(Node):
         # Motor feedback
         self.motor_feedback: dict[int, MotorFeedback] = {}
         
+        # Head feedback
+        self.head_feedback: Union[HeadFeedback, None] = None
+        
         # Create ros subsctiption
-        self._motor_feedback_subscription = self.create_subscription(MotorFeedback, "motor_feedback", self._motor_feedback_callback, rclpy.qos.qos_profile_sensor_data)
+        self._motor_feedback_subscription = self.create_subscription(MotorFeedback, "motor_feedback", self._motor_feedback_callback, rclpy.qos.QoSPresetProfiles.get_from_short_key("SENSOR_DATA"))
+        self._head_feedback_subscription = self.create_subscription(HeadFeedback, "head_feedback", self._head_feedback_callback, rclpy.qos.QoSPresetProfiles.get_from_short_key("SENSOR_DATA"))
         
         # Create ros publisher
-        self._motor_control_publisher = self.create_publisher(MotorControl, "motor_control", rclpy.qos.qos_profile_system_default)
-        self._face_control_publisher = self.create_publisher(FaceControl, "face_control", rclpy.qos.qos_profile_system_default)
-        self._neck_control_publisher = self.create_publisher(NeckControl, "neck_control", rclpy.qos.qos_profile_system_default)
+        self._motor_control_publisher = self.create_publisher(MotorControl, "motor_control", rclpy.qos.QoSPresetProfiles.get_from_short_key("SYSTEM_DEFAULT"))
+        self._face_control_publisher = self.create_publisher(FaceControl, "face_control", rclpy.qos.QoSPresetProfiles.get_from_short_key("SYSTEM_DEFAULT"))
+        self._neck_control_publisher = self.create_publisher(NeckControl, "neck_control", rclpy.qos.QoSPresetProfiles.get_from_short_key("SYSTEM_DEFAULT"))
     
     def _motor_feedback_callback(self, msg: MotorFeedback) -> None:
         self._motor_feedback[msg.id] = msg
+    
+    def _head_feedback_callback(self, msg: HeadFeedback) -> None:
+        self.head_feedback = msg
     
     def control_motor(self, msg: MotorControl):
         self._motor_control_publisher.publish(msg)
@@ -60,7 +81,7 @@ def list_motors() -> ApiListMotorResponse:
 
 
 @app.get("/motor/{id}")
-def get_motor_feedback(id: int):
+def get_motor_feedback(id: int) -> ApiMotorFeedbackResponse:
     motor_feedback = humanoid_web_node.motor_feedback.get(id)
     if motor_feedback is None:
         raise HTTPException(status_code=404, detail="Motor not found")
@@ -91,29 +112,16 @@ def control_motor(id: int, command: ApiControlMotorRequest):
     return {"message": "Success"}
 
 
-@app.put("/face")
+@app.put("/head/face")
 def control_face(command: ApiControlFaceRequest):
-    items = [
-        "chin_up_down",
-        "eyes_up_down",
-        "eyes_left_right",
-        "left_eyelid_up_down",
-        "right_eyelid_up_down",
-        "left_eyebrow_up_down",
-        "right_eyebrow_up_down",
-        "left_cheek_up_down",
-        "right_cheek_up_down",
-        "left_lip_corner_push_pull",
-        "right_lip_corner_push_pull"
-    ]
     msg = FaceControl()
-    for i in items:
+    for i in HumanoidWebNode.face_components:
         msg.pulse_width[getattr(FaceControl, f'SERVO_{i.upper()}')] = getattr(command, i)
     humanoid_web_node.control_face(msg)
     return {"message": "Success"}
 
 
-@app.put("/neck")
+@app.put("/head/neck")
 def control_neck(command: ApiControlNeckRequest):
     msg = NeckControl()
     msg.pitch_velocity = command.pitch_velocity
@@ -121,6 +129,18 @@ def control_neck(command: ApiControlNeckRequest):
     msg.yaw_max_velocity = command.yaw_max_velocity
     humanoid_web_node.control_neck(msg)
     return {"message": "Success"}
+
+
+@app.get("/head")
+def get_head_feedback() -> ApiHeadFeedbackResponse:
+    response = ApiHeadFeedbackResponse()
+    if humanoid_web_node.head_feedback is None:
+        raise HTTPException(status_code=404, detail="Head not found")
+    for i in HumanoidWebNode.face_components:
+        setattr(response.face, i, humanoid_web_node.head_feedback.pulse_width[getattr(FaceControl, f'SERVO_{i.upper()}')])
+    response.neck.pitch_velocity = humanoid_web_node.head_feedback.pitch_velocity
+    response.neck.yaw_angle = humanoid_web_node.head_feedback.yaw_angle
+    return response
 
 
 def main(args=None):
@@ -134,5 +154,3 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
-
-
