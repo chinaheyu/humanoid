@@ -109,7 +109,7 @@ class ApiControlFaceRequest(ApiFaceComponents):
         "json_schema_extra": {
             "examples": [
                 {
-                    "chin_up_down": 1500,
+                    "chin_up_down": 1000,
                     "eyes_up_down": 1500,
                     "eyes_left_right": 1500,
                     "left_eyelid_up_down": 1500,
@@ -151,7 +151,7 @@ class ApiHeadFeedbackResponse(BaseModel):
             "examples": [
                 {
                     "face": {
-                        "chin_up_down": 1500,
+                        "chin_up_down": 1000,
                         "eyes_up_down": 1500,
                         "eyes_left_right": 1500,
                         "left_eyelid_up_down": 1500,
