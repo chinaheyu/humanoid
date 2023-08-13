@@ -278,7 +278,7 @@ void HumanoidBaseNode::update_parameters_callback_(
                 head_serial_ = param.value.string_value;
                 RCLCPP_INFO_STREAM(this->get_logger(),
                                    CL_BOLDGREEN
-                                       << "New head mapping: " << head_serial_
+                                       << "New head mapping: " << param.name
                                        << " -> " << param.value.string_value
                                        << CL_RESET);
             }
@@ -325,7 +325,7 @@ void HumanoidBaseNode::update_parameters_callback_(
                 head_serial_ = param.value.string_value;
                 RCLCPP_INFO_STREAM(
                     this->get_logger(),
-                    CL_BOLDGREEN << "Change head mapping: " << head_serial_
+                    CL_BOLDGREEN << "Change head mapping: " << param.name
                                  << " -> " << param.value.string_value
                                  << CL_RESET);
             }
