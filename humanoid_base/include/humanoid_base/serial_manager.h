@@ -10,14 +10,14 @@
 #include <std_msgs/msg/float64.hpp>
 
 #include "humanoid_base/protocol.h"
-#include "humanoid_base/serial_lite.h"
+#include "humanoid_base/usb_device.h"
 
 class HumanoidBaseNode;
 
 class SerialManager : public std::enable_shared_from_this<SerialManager>,
-                      public serial::Serial {
+                      public USBDevice {
 public:
-    SerialManager(const serial::SerialInfo& i, HumanoidBaseNode* const node,
+    SerialManager(const USBDeviceInfo& i, HumanoidBaseNode* const node,
                   long long sync_base_latency = 500,
                   long long sync_tolerance = 1000,
                   long long read_timeout = 100000);
@@ -39,10 +39,9 @@ public:
         }
     }
 
-    const serial::SerialInfo& get_serial_info() const;
+    const USBDeviceInfo& get_serial_info() const;
 
 private:
-    serial::SerialInfo info_;
     std::atomic_bool is_open_;
     std::atomic_bool is_sync_;
     std::atomic_bool wait_to_delete_;

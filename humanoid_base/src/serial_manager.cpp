@@ -12,12 +12,11 @@
 
 void* read_from_serial_port_(void* obj);
 
-SerialManager::SerialManager(const serial::SerialInfo& i,
+SerialManager::SerialManager(const USBDeviceInfo& i,
                              HumanoidBaseNode* const node,
                              long long sync_base_latency,
                              long long sync_tolerance, long long read_timeout)
-    : serial::Serial(i.port_path, 921600),
-      info_(i),
+    : USBDevice(i),
       is_open_(false),
       is_sync_(false),
       wait_to_delete_(false),
@@ -58,7 +57,7 @@ long long SerialManager::get_timestamp_() {
 
 bool SerialManager::is_wait_to_delete() { return wait_to_delete_.load(); }
 
-const serial::SerialInfo& SerialManager::get_serial_info() const {
+const USBDeviceInfo& SerialManager::get_serial_info() const {
     return info_;
 }
 
@@ -129,25 +128,7 @@ void* read_from_serial_port_(void* obj) {
     std::vector<uint8_t> buffer(4096, 0);
     long long ret;
     while (rclcpp::ok() && serial->is_open_) {
-        if (serial->wait_readable(serial->read_timeout_ * 1e3)) {
-            ret = serial->read(buffer.data(), buffer.size());
-            if (ret < 0) {
-                // Read error.
-                RCLCPP_ERROR_STREAM(serial->node_->get_logger(),
-                                    "Serial read error ("
-                                        << strerror(errno)
-                                        << "): " << serial->info_);
-                serial->wait_to_delete_ = true;
-                break;
-            }
-        } else {
-            // Timeout.
-            RCLCPP_ERROR_STREAM(serial->node_->get_logger(),
-                                "Serial read timeout: " << serial->info_);
-            serial->reset_device_();
-            break;
-        }
-
+        ret = serial->read(buffer.data(), buffer.size());
         for (long long i = 0; i < ret; ++i) {
             if (protocol_unpack_byte(unpack_stream_obj, buffer[i])) {
                 // Sync time.

@@ -100,7 +100,7 @@ void HumanoidBaseNode::scan_device_() {
     }
 
     // Scan serial device.
-    for (const auto& info : serial::SerialInfo::list_port()) {
+    for (const auto& info : LibUSBWarpper::get_instance().list_device()) {
         if (info.manufacturer == "scut" && info.product == "humanoid") {
             if (serials_.count(info.serial_number) == 0) {
                 RCLCPP_INFO_STREAM(
