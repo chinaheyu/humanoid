@@ -121,6 +121,18 @@ def control_motor(id: int, command: ApiControlMotorRequest):
     return {"message": "Success"}
 
 
+@app.get("/head")
+def get_head_feedback() -> ApiHeadFeedbackResponse:
+    response = ApiHeadFeedbackResponse()
+    if humanoid_web_node.head_feedback is None:
+        raise HTTPException(status_code=404, detail="Head not found")
+    for i in HumanoidWebNode.face_components:
+        setattr(response.face, i, humanoid_web_node.head_feedback.pulse_width[getattr(FaceControl, f'SERVO_{i.upper()}')])
+    response.neck.pitch_velocity = humanoid_web_node.head_feedback.pitch_velocity
+    response.neck.yaw_angle = humanoid_web_node.head_feedback.yaw_angle
+    return response
+
+
 @app.put("/head/face")
 def control_face(command: ApiControlFaceRequest):
     msg = FaceControl()
@@ -138,18 +150,6 @@ def control_neck(command: ApiControlNeckRequest):
     msg.yaw_max_velocity = command.yaw_max_velocity
     humanoid_web_node.control_neck(msg)
     return {"message": "Success"}
-
-
-@app.get("/head")
-def get_head_feedback() -> ApiHeadFeedbackResponse:
-    response = ApiHeadFeedbackResponse()
-    if humanoid_web_node.head_feedback is None:
-        raise HTTPException(status_code=404, detail="Head not found")
-    for i in HumanoidWebNode.face_components:
-        setattr(response.face, i, humanoid_web_node.head_feedback.pulse_width[getattr(FaceControl, f'SERVO_{i.upper()}')])
-    response.neck.pitch_velocity = humanoid_web_node.head_feedback.pitch_velocity
-    response.neck.yaw_angle = humanoid_web_node.head_feedback.yaw_angle
-    return response
 
 
 def main(args=None):
