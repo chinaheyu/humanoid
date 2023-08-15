@@ -1,6 +1,17 @@
-/humanoid/humanoid_base:
+humanoid_base:
   ros__parameters:
-    head: unknown
-    motor_0: unknown
-    motor_1: unknown
-    motor_2: unknown
+    head: "205D32834D31"
+    motor_1: "2064378F5948"
+    motor_2: "2064378F5948"
+    motor_3: "unknown"
+    motor_4: "unknown"
+    motor_5: "unknown"
+    motor_6: "unknown"
+    motor_7: "unknown"
+    motor_8: "2064378F5948"
+    motor_9: "unknown"
+    motor_10: "unknown"
+    motor_11: "unknown"
+    motor_12: "unknown"
+    motor_13: "unknown"
+

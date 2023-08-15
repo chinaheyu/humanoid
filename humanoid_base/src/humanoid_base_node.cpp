@@ -73,9 +73,9 @@ void HumanoidBaseNode::dispatch_frame_(
             publish_motor_feedback_(
                 get_message_<cmd_motor_feedback_t>(data)->timestamp,
                 get_message_<cmd_motor_feedback_t>(data)->id,
-                get_message_<cmd_motor_feedback_t>(data)->position,
-                get_message_<cmd_motor_feedback_t>(data)->velocity,
-                get_message_<cmd_motor_feedback_t>(data)->torque);
+                get_message_<cmd_motor_feedback_t>(data)->position / 1000.0,
+                get_message_<cmd_motor_feedback_t>(data)->velocity / 1000.0,
+                get_message_<cmd_motor_feedback_t>(data)->torque / 1000.0);
             break;
         case CMD_HEAD_FEEDBACK:
             publish_head_feedback_(data);
@@ -278,7 +278,7 @@ void HumanoidBaseNode::update_parameters_callback_(
                 head_serial_ = param.value.string_value;
                 RCLCPP_INFO_STREAM(this->get_logger(),
                                    CL_BOLDGREEN
-                                       << "New head mapping: " << head_serial_
+                                       << "New head mapping: " << param.name
                                        << " -> " << param.value.string_value
                                        << CL_RESET);
             }
@@ -325,7 +325,7 @@ void HumanoidBaseNode::update_parameters_callback_(
                 head_serial_ = param.value.string_value;
                 RCLCPP_INFO_STREAM(
                     this->get_logger(),
-                    CL_BOLDGREEN << "Change head mapping: " << head_serial_
+                    CL_BOLDGREEN << "Change head mapping: " << param.name
                                  << " -> " << param.value.string_value
                                  << CL_RESET);
             }

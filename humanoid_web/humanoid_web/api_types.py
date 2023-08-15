@@ -86,22 +86,22 @@ class ApiControlMotorRequest(BaseModel):
 
 
 class ApiFaceComponents(BaseModel):
-    chin_up_down: int
-    eyes_up_down: int
-    eyes_left_right: int
-    left_eyelid_up_down: int
-    right_eyelid_up_down: int
-    left_eyebrow_up_down: int
-    right_eyebrow_up_down: int
-    left_cheek_up_down: int
-    right_cheek_up_down: int
-    left_lip_corner_push_pull: int
-    right_lip_corner_push_pull: int
+    chin_up_down: int = 1000
+    eyes_up_down: int = 1500
+    eyes_left_right: int = 1500
+    left_eyelid_up_down: int = 1500
+    right_eyelid_up_down: int = 1500
+    left_eyebrow_up_down: int = 1500
+    right_eyebrow_up_down: int = 1500
+    left_cheek_up_down: int = 1500
+    right_cheek_up_down: int = 1500
+    left_lip_corner_push_pull: int = 1500
+    right_lip_corner_push_pull: int = 1500
 
 
 class ApiNeckComponents(BaseModel):
-    pitch_velocity: float
-    yaw_angle: float
+    pitch_velocity: float = 0.0
+    yaw_angle: float = 0.0
 
 
 class ApiControlFaceRequest(ApiFaceComponents):
@@ -109,7 +109,7 @@ class ApiControlFaceRequest(ApiFaceComponents):
         "json_schema_extra": {
             "examples": [
                 {
-                    "chin_up_down": 1500,
+                    "chin_up_down": 1000,
                     "eyes_up_down": 1500,
                     "eyes_left_right": 1500,
                     "left_eyelid_up_down": 1500,
@@ -143,15 +143,15 @@ class ApiControlNeckRequest(ApiNeckComponents):
 
 
 class ApiHeadFeedbackResponse(BaseModel):
-    face: ApiFaceComponents
-    neck: ApiNeckComponents
+    face: ApiFaceComponents = ApiFaceComponents()
+    neck: ApiNeckComponents = ApiNeckComponents()
     
     model_config = {
         "json_schema_extra": {
             "examples": [
                 {
                     "face": {
-                        "chin_up_down": 1500,
+                        "chin_up_down": 1000,
                         "eyes_up_down": 1500,
                         "eyes_left_right": 1500,
                         "left_eyelid_up_down": 1500,

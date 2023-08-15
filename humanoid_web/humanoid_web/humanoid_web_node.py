@@ -2,9 +2,11 @@ from typing import Union
 import rclpy
 import rclpy.qos
 from rclpy.node import Node
+from rclpy.time import Time
 import uvicorn
 import threading
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from .api_types import *
 from humanoid_interface.msg import MotorControl, MotorFeedback, FaceControl, NeckControl, HeadFeedback
 
@@ -44,7 +46,7 @@ class HumanoidWebNode(Node):
         self._neck_control_publisher = self.create_publisher(NeckControl, "neck_control", rclpy.qos.QoSPresetProfiles.get_from_short_key("SYSTEM_DEFAULT"))
     
     def _motor_feedback_callback(self, msg: MotorFeedback) -> None:
-        self._motor_feedback[msg.id] = msg
+        self.motor_feedback[msg.id] = msg
     
     def _head_feedback_callback(self, msg: HeadFeedback) -> None:
         self.head_feedback = msg
@@ -61,6 +63,13 @@ class HumanoidWebNode(Node):
 
 humanoid_web_node = None
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/motor")
@@ -70,7 +79,7 @@ def list_motors() -> ApiListMotorResponse:
         for motor_feedback in humanoid_web_node.motor_feedback.values():
             response.motors.append(
                 ApiMotorFeedbackResponse(
-                    timestamp=motor_feedback.stamp,
+                    timestamp=Time.from_msg(motor_feedback.stamp).nanoseconds / 1000,
                     id=motor_feedback.id,
                     position=motor_feedback.position,
                     velocity=motor_feedback.velocity,
@@ -80,13 +89,13 @@ def list_motors() -> ApiListMotorResponse:
     return response
 
 
-@app.get("/motor/{id}")
+@app.get("/motor/feedback")
 def get_motor_feedback(id: int) -> ApiMotorFeedbackResponse:
     motor_feedback = humanoid_web_node.motor_feedback.get(id)
     if motor_feedback is None:
         raise HTTPException(status_code=404, detail="Motor not found")
     response = ApiMotorFeedbackResponse(
-        timestamp=motor_feedback.stamp,
+        timestamp=Time.from_msg(motor_feedback.stamp).nanoseconds / 1000,
         id=motor_feedback.id,
         position=motor_feedback.position,
         velocity=motor_feedback.velocity,
@@ -95,8 +104,8 @@ def get_motor_feedback(id: int) -> ApiMotorFeedbackResponse:
     return response
 
 
-@app.put("/motor/{id}")
-def control_motor(id: int, command: ApiControlMotorRequest):
+@app.put("/motor/control")
+def control_motor(command: ApiControlMotorRequest):
     msg = MotorControl()
     msg.id = command.id
     if command.control_type == ApiControlType.MOTOR_MIT_CONTROL:
@@ -137,7 +146,7 @@ def get_head_feedback() -> ApiHeadFeedbackResponse:
     if humanoid_web_node.head_feedback is None:
         raise HTTPException(status_code=404, detail="Head not found")
     for i in HumanoidWebNode.face_components:
-        setattr(response.face, i, humanoid_web_node.head_feedback.pulse_width[getattr(FaceControl, f'SERVO_{i.upper()}')])
+        setattr(response.face, i, int(humanoid_web_node.head_feedback.pulse_width[getattr(FaceControl, f'SERVO_{i.upper()}')]))
     response.neck.pitch_velocity = humanoid_web_node.head_feedback.pitch_velocity
     response.neck.yaw_angle = humanoid_web_node.head_feedback.yaw_angle
     return response
