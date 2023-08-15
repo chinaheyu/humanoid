@@ -64,7 +64,7 @@ const serial::SerialInfo& SerialManager::get_serial_info() const {
 void SerialManager::reset_device_() {
     RCLCPP_WARN_STREAM(node_->get_logger(), "Reset device: " << info_);
     is_open_ = false;
-    send_message_to_device(CMD_RESET);
+    // send_message_to_device(CMD_RESET);
     wait_to_delete_ = true;
 }
 
@@ -143,7 +143,7 @@ void* read_from_serial_port_(void* obj) {
             // Timeout.
             RCLCPP_ERROR_STREAM(serial->node_->get_logger(),
                                 "Serial read timeout: " << serial->info_);
-            // serial->reset_device_();
+            serial->reset_device_();
             break;
         }
 
