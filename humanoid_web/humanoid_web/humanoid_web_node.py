@@ -105,7 +105,7 @@ def get_motor_feedback(id: int) -> ApiMotorFeedbackResponse:
 
 
 @app.put("/motor/control")
-def control_motor(id: int, command: ApiControlMotorRequest):
+def control_motor(command: ApiControlMotorRequest):
     msg = MotorControl()
     msg.id = command.id
     if command.control_type == ApiControlType.MOTOR_MIT_CONTROL:

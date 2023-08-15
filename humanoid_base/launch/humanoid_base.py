@@ -13,7 +13,7 @@ def generate_launch_description():
     return LaunchDescription([
         Node(
             package='humanoid_base',
-            namespace='humanoid',
+            namespace='/',
             executable='humanoid_base_node',
             name='humanoid_base',
             parameters = [config],
