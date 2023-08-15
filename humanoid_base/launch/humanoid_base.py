@@ -16,7 +16,6 @@ def generate_launch_description():
             namespace='/',
             executable='humanoid_base_node',
             name='humanoid_base',
-            parameters = [config],
-            arguments=['--ros-args', '--log-level', 'debug']
+            parameters = [config]
         )
     ])

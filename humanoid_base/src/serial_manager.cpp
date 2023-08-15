@@ -39,10 +39,9 @@ SerialManager::~SerialManager() {
 void SerialManager::sync_time_() {
     long long current_time = get_timestamp_();
     if (current_time - last_sync_time_ > 1000000) {
-        RCLCPP_DEBUG_STREAM(
-            node_->get_logger(),
-            CL_BOLDGREEN << "Sync device time (timestamp = " << current_time
-                         << " us): " << info_ << CL_RESET);
+        RCLCPP_DEBUG_STREAM(node_->get_logger(),
+                            "Sync device time (timestamp = "
+                                << current_time << " us): " << info_);
         cmd_sync_t msg;
         msg.timestamp = current_time;
         send_message_to_device(CMD_SYNC, msg);
@@ -144,7 +143,7 @@ void* read_from_serial_port_(void* obj) {
             // Timeout.
             RCLCPP_ERROR_STREAM(serial->node_->get_logger(),
                                 "Serial read timeout: " << serial->info_);
-            serial->reset_device_();
+            // serial->reset_device_();
             break;
         }
 
