@@ -1,8 +1,10 @@
 import os
 import threading
 import rclpy
+import rclpy.qos
 from rclpy.node import Node
 from std_srvs.srv import SetBool
+from humanoid_interface.msg import ChatResult
 from .azure_speech import AzureSpeechService
 from .iflytek_spark import SparkDesk
 
@@ -33,8 +35,9 @@ class HumanoidChatNode(Node):
         self.chat_thread = threading.Thread(target=self._main_loop)
         self.chat_thread.start()
         
-        # Ros2 service
+        # Ros2 interface
         self.chat_switch_server = self.create_service(SetBool, 'chat_switch', self._chat_switch_callback)
+        self.chat_result_publisher = self.create_publisher(ChatResult, "chat_result", rclpy.qos.QoSPresetProfiles.get_from_short_key("SYSTEM_DEFAULT"))
     
     def _chat_switch_callback(self, request: SetBool.Request, response: SetBool.Response):
         if request.data != self.chatting:
@@ -57,7 +60,7 @@ class HumanoidChatNode(Node):
         while self.chatting:
             # Detect keyword
             self.get_logger().info("Recognizing keyword.")
-            while not self._azure.recognize_keyword(os.path.join(self._package_path, "keyword_model.table")):
+            while not self._azure.recognize_keyword(os.path.join(self._package_path, "xz.table")):
                 self.get_logger().error("Keyword recognize faliure.")
             self.get_logger().info("Keyword recognize success.")
             self._azure.text_to_speech('我在')
@@ -86,7 +89,14 @@ class HumanoidChatNode(Node):
                         synthesis_ptr = sep_ptr
                 prev_response = response
             print()
-            self._azure.text_to_speech(prev_response[synthesis_ptr:])
+            self.chat_result_publisher.publish(
+                ChatResult(
+                    question=question,
+                    answer=prev_response
+                )
+            )
+            if prev_response[synthesis_ptr:]:
+                self._azure.text_to_speech(prev_response[synthesis_ptr:])
             self._azure.wait_speech_synthesising()
 
 
