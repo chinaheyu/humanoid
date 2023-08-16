@@ -1,8 +1,8 @@
 #include "humanoid_base/serial_manager.h"
 
 #include <alloca.h>
+#include <unistd.h>
 
-#include <cerrno>
 #include <chrono>
 #include <cstdint>
 
@@ -24,7 +24,8 @@ SerialManager::SerialManager(const USBDeviceInfo& i,
       sync_base_latency_(sync_base_latency),
       sync_tolerance_(sync_tolerance),
       read_timeout_(read_timeout),
-      last_sync_time_(0) {
+      last_sync_time_(0),
+      app_id_(0) {
     latency_publisher_ = node_->create_publisher<std_msgs::msg::Float64>(
         "latency/s" + info_.serial_number, 10);
     create_read_thread_();
@@ -56,14 +57,13 @@ long long SerialManager::get_timestamp_() {
 
 bool SerialManager::is_wait_to_delete() { return wait_to_delete_.load(); }
 
-const USBDeviceInfo& SerialManager::get_serial_info() const {
-    return info_;
-}
+const USBDeviceInfo& SerialManager::get_serial_info() const { return info_; }
 
 void SerialManager::reset_device_() {
     RCLCPP_WARN_STREAM(node_->get_logger(), "Reset device: " << info_);
     is_open_ = false;
-    // send_message_to_device(CMD_RESET);
+    send_message_to_device(CMD_RESET);
+    reset();
     wait_to_delete_ = true;
 }
 
@@ -149,13 +149,14 @@ void* read_from_serial_port_(void* obj) {
                     if (unpack_stream_obj->cmd_id == CMD_READ_APP_ID_FEEDBACK &&
                         unpack_stream_obj->data_len ==
                             sizeof(cmd_read_app_id_feedback_t)) {
-                        const uint8_t app_id =
+                        serial->app_id_ =
                             reinterpret_cast<cmd_read_app_id_feedback_t*>(
                                 unpack_stream_obj->data)
                                 ->app_id;
 
                         // Initialize Leg Motor
-                        if (app_id == 2 || app_id == 3 || app_id == 4) {
+                        if (serial->app_id_ == 2 || serial->app_id_ == 3 ||
+                            serial->app_id_ == 4) {
                             serial->send_message_to_device(
                                 CMD_INITIALIZE_MOTOR);
                         }
@@ -201,6 +202,8 @@ void* read_from_serial_port_(void* obj) {
                 }
             }
         }
+
+        usleep(1000);
     }
     protocol_free_unpack_stream(unpack_stream_obj);
     return nullptr;

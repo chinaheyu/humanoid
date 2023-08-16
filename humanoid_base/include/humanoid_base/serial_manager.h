@@ -18,8 +18,8 @@ class SerialManager : public std::enable_shared_from_this<SerialManager>,
                       public USBDevice {
 public:
     SerialManager(const USBDeviceInfo& i, HumanoidBaseNode* const node,
-                  long long sync_base_latency = 500,
-                  long long sync_tolerance = 1000,
+                  long long sync_base_latency = 2000,
+                  long long sync_tolerance = 3000,
                   long long read_timeout = 1000000);
     ~SerialManager();
 
@@ -41,6 +41,8 @@ public:
 
     const USBDeviceInfo& get_serial_info() const;
 
+    uint8_t get_board_app_id();
+
 private:
     std::atomic_bool is_open_;
     std::atomic_bool is_sync_;
@@ -51,6 +53,7 @@ private:
     long long sync_tolerance_;
     long long read_timeout_;
     long long last_sync_time_;
+    uint8_t app_id_;
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr latency_publisher_;
 
     void create_read_thread_();

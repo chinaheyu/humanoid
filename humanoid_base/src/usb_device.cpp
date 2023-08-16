@@ -1,4 +1,5 @@
 #include "humanoid_base/usb_device.h"
+#include <iostream>
 
 LibUSBWarpper::LibUSBWarpper() : ctx_(nullptr) { libusb_init(&ctx_); }
 
@@ -65,27 +66,27 @@ std::vector<USBDeviceInfo> LibUSBWarpper::list_device() {
 }
 
 USBDevice::USBDevice(const USBDeviceInfo &info, unsigned char in_ep,
-                     unsigned char out_ep)
-    : info_(info), in_ep_(in_ep), out_ep_(out_ep) {}
+                     unsigned char out_ep, unsigned char cmd_ep)
+    : info_(info), in_ep_(in_ep), out_ep_(out_ep), cmd_ep_(cmd_ep) {}
 
 USBDevice::~USBDevice() {
-    libusb_release_interface(dev_handle, 0);
-    libusb_close(dev_handle);
+    libusb_release_interface(dev_handle_, 0);
+    libusb_close(dev_handle_);
 }
 
 bool USBDevice::init() {
-    if (libusb_open(info_.device, &dev_handle) != LIBUSB_SUCCESS) return false;
-    if (libusb_set_auto_detach_kernel_driver(dev_handle, 1) != LIBUSB_SUCCESS)
+    if (libusb_open(info_.device, &dev_handle_) != LIBUSB_SUCCESS) return false;
+    if (libusb_set_auto_detach_kernel_driver(dev_handle_, 1) != LIBUSB_SUCCESS)
         return false;
-    if (libusb_claim_interface(dev_handle, 0) != LIBUSB_SUCCESS) return false;
+    if (libusb_claim_interface(dev_handle_, 0) != LIBUSB_SUCCESS) return false;
     return true;
 }
 
 long long USBDevice::read(uint8_t *buf, size_t len) {
     int nread, ret;
-    ret = libusb_bulk_transfer(dev_handle, in_ep_, buf, len, &nread,
-                               0);
+    ret = libusb_bulk_transfer(dev_handle_, in_ep_, buf, len, &nread, 0);
     if (ret != LIBUSB_SUCCESS) {
+        std::cerr << std::string(libusb_strerror(libusb_error(ret))) << std::endl;
         return -1;
     }
     return nread;
@@ -93,10 +94,14 @@ long long USBDevice::read(uint8_t *buf, size_t len) {
 
 long long USBDevice::write(uint8_t *buf, size_t len) {
     int nwrite, ret;
-    ret = libusb_bulk_transfer(dev_handle, out_ep_, buf, len,
-                               &nwrite, 0);
+    ret = libusb_bulk_transfer(dev_handle_, out_ep_, buf, len, &nwrite, 0);
     if (ret != LIBUSB_SUCCESS) {
+        std::cerr << std::string(libusb_strerror(libusb_error(ret))) << std::endl;
         return -1;
     }
     return nwrite;
+}
+
+bool USBDevice::reset() {
+    return libusb_reset_device(dev_handle_) == LIBUSB_SUCCESS;
 }
