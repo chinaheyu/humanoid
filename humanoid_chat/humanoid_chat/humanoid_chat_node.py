@@ -55,6 +55,7 @@ class HumanoidChatNode(Node):
     def _main_loop(self):
         self._azure.text_to_speech('请对我说小智')
         while self.chatting:
+            # Detect keyword
             self.get_logger().info("Recognizing keyword.")
             while not self._azure.recognize_keyword(os.path.join(self._package_path, "keyword_model.table")):
                 self.get_logger().error("Keyword recognize faliure.")
@@ -62,34 +63,31 @@ class HumanoidChatNode(Node):
             self._azure.text_to_speech('我在')
             self._azure.wait_speech_synthesising()
 
-            while self.chatting:
-                question = ""
-                for response in self._azure.speech_to_text():
-                    print(response[len(question):], end="", flush=True)
-                    question = response
-                print()
-                if not question:
-                    break
+            # ASR
+            question = ""
+            for response in self._azure.speech_to_text():
+                print(response[len(question):], end="", flush=True)
+                question = response
+            print()
+            if not question:
+                continue
 
-                prev_response = ""
-                synthesis_ptr = 0
-                for response in self._chat_model.chat_stream(question):
-                    # print stream response
-                    print(response[len(prev_response):], end='', flush=True)
-                    
-                    # synthesis
-                    if not self._azure.is_speech_synthesising():
-                        sep_ptr = max(response.rfind(i) for i in [",", ";", ".", "?", "，", "；", "。", "？"])
-                        if sep_ptr > synthesis_ptr:
-                            self._azure.text_to_speech(response[synthesis_ptr:sep_ptr])
-                            synthesis_ptr = sep_ptr
-
-                    prev_response = response
-                print()
-                self._azure.text_to_speech(prev_response[synthesis_ptr:])
-                self._azure.wait_speech_synthesising()
-            
-            self._azure.text_to_speech('再见')
+            # Chat and tts
+            prev_response = ""
+            synthesis_ptr = 0
+            for response in self._chat_model.chat_stream(question):
+                # print stream response
+                print(response[len(prev_response):], end='', flush=True)
+                # synthesis
+                if not self._azure.is_speech_synthesising():
+                    sep_ptr = max(response.rfind(i) for i in [",", ";", ".", "?", "，", "；", "。", "？"])
+                    if sep_ptr > synthesis_ptr:
+                        self._azure.text_to_speech(response[synthesis_ptr:sep_ptr])
+                        synthesis_ptr = sep_ptr
+                prev_response = response
+            print()
+            self._azure.text_to_speech(prev_response[synthesis_ptr:])
+            self._azure.wait_speech_synthesising()
 
 
 def main(args=None):

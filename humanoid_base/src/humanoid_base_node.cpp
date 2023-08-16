@@ -73,9 +73,9 @@ void HumanoidBaseNode::dispatch_frame_(
             publish_motor_feedback_(
                 get_message_<cmd_motor_feedback_t>(data)->timestamp,
                 get_message_<cmd_motor_feedback_t>(data)->id,
-                get_message_<cmd_motor_feedback_t>(data)->position,
-                get_message_<cmd_motor_feedback_t>(data)->velocity,
-                get_message_<cmd_motor_feedback_t>(data)->torque);
+                get_message_<cmd_motor_feedback_t>(data)->position / 1000.0,
+                get_message_<cmd_motor_feedback_t>(data)->velocity / 1000.0,
+                get_message_<cmd_motor_feedback_t>(data)->torque / 1000.0);
             break;
         case CMD_HEAD_FEEDBACK:
             publish_head_feedback_(data);

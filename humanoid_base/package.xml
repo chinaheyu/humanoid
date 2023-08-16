@@ -18,6 +18,8 @@
   <build_depend>libusb-1.0-dev</build_depend>
   <exec_depend>libusb-1.0</exec_depend>
 
+  <exec_depend>ros2launch</exec_depend>
+
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
 
