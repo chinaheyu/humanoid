@@ -125,6 +125,9 @@ void* read_from_serial_port_(void* obj) {
     serial->send_message_to_device(CMD_READ_APP_ID);
     long long read_app_id_last_time = serial->get_timestamp_();
 
+    // Timeout detect
+    long long device_read_last_time = serial->get_timestamp_();
+
     // Unpack message.
     protocol_stream_t* unpack_stream_obj =
         protocol_create_unpack_stream(1000, true);
@@ -132,6 +135,13 @@ void* read_from_serial_port_(void* obj) {
     long long ret;
     while (rclcpp::ok() && serial->is_open_) {
         ret = serial->read(buffer.data(), buffer.size());
+        if (ret > 0) {
+            device_read_last_time = serial->get_timestamp_();
+        } else {
+            if (serial->get_timestamp_() - device_read_last_time > 1e6) {
+                serial->reset_device_();
+            }
+        }
         for (long long i = 0; i < ret; ++i) {
             if (protocol_unpack_byte(unpack_stream_obj, buffer[i])) {
                 // Read board app
