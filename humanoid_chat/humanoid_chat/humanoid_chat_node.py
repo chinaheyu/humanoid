@@ -70,7 +70,7 @@ class HumanoidChatNode(Node):
                 question = response
             print()
             if not question:
-                break
+                continue
 
             # Chat and tts
             prev_response = ""

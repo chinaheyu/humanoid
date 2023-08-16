@@ -18,6 +18,8 @@ endif()
 find_package(ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies()
 
-ament_auto_add_executable(humanoid_base_node DIRECTORY "src")
+ament_auto_add_executable(humanoid_base_node DIRECTORY "src" NO_TARGET_LINK_LIBRARIES)
+
+target_link_libraries(humanoid_base_node ${${PROJECT_NAME}_LIBRARIES} -lusb-1.0)
 
 ament_auto_package(INSTALL_TO_SHARE launch config)

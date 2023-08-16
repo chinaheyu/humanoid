@@ -12,12 +12,11 @@
 
 void* read_from_serial_port_(void* obj);
 
-SerialManager::SerialManager(const serial::SerialInfo& i,
+SerialManager::SerialManager(const USBDeviceInfo& i,
                              HumanoidBaseNode* const node,
                              long long sync_base_latency,
                              long long sync_tolerance, long long read_timeout)
-    : serial::Serial(i.port_path, 921600),
-      info_(i),
+    : USBDevice(i),
       is_open_(false),
       is_sync_(false),
       wait_to_delete_(false),
@@ -57,7 +56,7 @@ long long SerialManager::get_timestamp_() {
 
 bool SerialManager::is_wait_to_delete() { return wait_to_delete_.load(); }
 
-const serial::SerialInfo& SerialManager::get_serial_info() const {
+const USBDeviceInfo& SerialManager::get_serial_info() const {
     return info_;
 }
 
@@ -122,33 +121,55 @@ void* read_from_serial_port_(void* obj) {
     // Sync time.
     serial->sync_time_();
 
+    // Read board app and initialize motor if needed
+    serial->send_message_to_device(CMD_READ_APP_ID);
+    long long read_app_id_last_time = serial->get_timestamp_();
+
+    // Timeout detect
+    long long device_read_last_time = serial->get_timestamp_();
+
     // Unpack message.
     protocol_stream_t* unpack_stream_obj =
         protocol_create_unpack_stream(1000, true);
     std::vector<uint8_t> buffer(4096, 0);
     long long ret;
     while (rclcpp::ok() && serial->is_open_) {
-        if (serial->wait_readable(serial->read_timeout_ * 1e3)) {
-            ret = serial->read(buffer.data(), buffer.size());
-            if (ret < 0) {
-                // Read error.
-                RCLCPP_ERROR_STREAM(serial->node_->get_logger(),
-                                    "Serial read error ("
-                                        << strerror(errno)
-                                        << "): " << serial->info_);
-                serial->wait_to_delete_ = true;
-                break;
-            }
+        ret = serial->read(buffer.data(), buffer.size());
+        if (ret > 0) {
+            device_read_last_time = serial->get_timestamp_();
         } else {
-            // Timeout.
-            RCLCPP_ERROR_STREAM(serial->node_->get_logger(),
-                                "Serial read timeout: " << serial->info_);
-            serial->reset_device_();
-            break;
+            if (serial->get_timestamp_() - device_read_last_time > 1e6) {
+                serial->reset_device_();
+            }
         }
-
         for (long long i = 0; i < ret; ++i) {
             if (protocol_unpack_byte(unpack_stream_obj, buffer[i])) {
+                // Read board app
+                if (read_app_id_last_time > 0) {
+                    if (unpack_stream_obj->cmd_id == CMD_READ_APP_ID_FEEDBACK &&
+                        unpack_stream_obj->data_len ==
+                            sizeof(cmd_read_app_id_feedback_t)) {
+                        const uint8_t app_id =
+                            reinterpret_cast<cmd_read_app_id_feedback_t*>(
+                                unpack_stream_obj->data)
+                                ->app_id;
+
+                        // Initialize Leg Motor
+                        if (app_id == 2 || app_id == 3 || app_id == 4) {
+                            serial->send_message_to_device(
+                                CMD_INITIALIZE_MOTOR);
+                        }
+
+                        read_app_id_last_time = -1;
+                    } else {
+                        if (serial->get_timestamp_() - read_app_id_last_time >
+                            1e6) {
+                            serial->send_message_to_device(CMD_READ_APP_ID);
+                            read_app_id_last_time = serial->get_timestamp_();
+                        }
+                    }
+                }
+
                 // Sync time.
                 long long device_time =
                     *reinterpret_cast<long long*>(unpack_stream_obj->data);

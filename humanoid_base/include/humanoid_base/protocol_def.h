@@ -16,6 +16,10 @@ typedef struct
 
 #define CMD_RESET (0x0002)
 
+#define CMD_READ_APP_ID (0x0003)
+
+#define CMD_INITIALIZE_MOTOR (0x0004)
+
 #define CMD_GYRO_FEEDBACK (0x0101)
 typedef struct 
 {
@@ -43,6 +47,13 @@ typedef struct
     short pitch_velocity;
     short yaw_angle;
 } cmd_head_feedback_t;
+
+#define CMD_READ_APP_ID_FEEDBACK (0x0104)
+typedef struct 
+{
+    long long timestamp;
+    unsigned char app_id;   // 0: TEST, 1: HEAD_CONTROL, 2: LEFT_LEG_CONTROL, 3: RIGHT_LEG_CONTROL, 4: WAIST_CONTROL
+} cmd_read_app_id_feedback_t;
 
 #define CMD_MOTOR_MIT (0x0201)
 typedef struct 
@@ -77,5 +88,6 @@ typedef struct
 } cmd_neck_motor_t;
 
 #pragma pack(pop)
+
 
 #endif //PROTOCOL_PROTOCOL_DEF_H
