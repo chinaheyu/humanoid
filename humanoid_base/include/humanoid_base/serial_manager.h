@@ -20,7 +20,7 @@ public:
     SerialManager(const serial::SerialInfo& i, HumanoidBaseNode* const node,
                   long long sync_base_latency = 500,
                   long long sync_tolerance = 1000,
-                  long long read_timeout = 100000);
+                  long long read_timeout = 1000000);
     ~SerialManager();
 
     bool is_wait_to_delete();

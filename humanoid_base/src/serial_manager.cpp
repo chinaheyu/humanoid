@@ -122,6 +122,10 @@ void* read_from_serial_port_(void* obj) {
     // Sync time.
     serial->sync_time_();
 
+    // Read board app and initialize motor if needed
+    serial->send_message_to_device(CMD_READ_APP_ID);
+    long long read_app_id_last_time = serial->get_timestamp_();
+
     // Unpack message.
     protocol_stream_t* unpack_stream_obj =
         protocol_create_unpack_stream(1000, true);
@@ -149,6 +153,32 @@ void* read_from_serial_port_(void* obj) {
 
         for (long long i = 0; i < ret; ++i) {
             if (protocol_unpack_byte(unpack_stream_obj, buffer[i])) {
+                // Read board app
+                if (read_app_id_last_time > 0) {
+                    if (unpack_stream_obj->cmd_id == CMD_READ_APP_ID_FEEDBACK &&
+                        unpack_stream_obj->data_len ==
+                            sizeof(cmd_read_app_id_feedback_t)) {
+                        const uint8_t app_id =
+                            reinterpret_cast<cmd_read_app_id_feedback_t*>(
+                                unpack_stream_obj->data)
+                                ->app_id;
+
+                        // Initialize Leg Motor
+                        if (app_id == 2 || app_id == 3 || app_id == 4) {
+                            serial->send_message_to_device(
+                                CMD_INITIALIZE_MOTOR);
+                        }
+
+                        read_app_id_last_time = -1;
+                    } else {
+                        if (serial->get_timestamp_() - read_app_id_last_time >
+                            1e6) {
+                            serial->send_message_to_device(CMD_READ_APP_ID);
+                            read_app_id_last_time = serial->get_timestamp_();
+                        }
+                    }
+                }
+
                 // Sync time.
                 long long device_time =
                     *reinterpret_cast<long long*>(unpack_stream_obj->data);

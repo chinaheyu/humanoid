@@ -306,11 +306,6 @@ private:
         tcflush(serial_fd_, TCIOFLUSH);
         /* activite the configuration */
         if ((tcsetattr(serial_fd_, TCSANOW, &new_termios_)) != 0) return false;
-        /* low latency mode */
-        struct serial_struct kernel_serial_settings;
-        ioctl(serial_fd_, TIOCGSERIAL, &kernel_serial_settings);
-        kernel_serial_settings.flags |= ASYNC_LOW_LATENCY;
-        ioctl(serial_fd_, TIOCSSERIAL, &kernel_serial_settings);
         return true;
     }
 
