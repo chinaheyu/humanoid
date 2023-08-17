@@ -1,13 +1,13 @@
 #ifndef __SERIAL_MANAGER_H__
 #define __SERIAL_MANAGER_H__
 
-#include <pthread.h>
 #include <sensor_msgs/msg/imu.h>
 
 #include <atomic>
 #include <memory>
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/float64.hpp>
+#include <thread>
 
 #include "humanoid_base/protocol.h"
 #include "humanoid_base/usb_device.h"
@@ -18,8 +18,7 @@ class SerialManager : public std::enable_shared_from_this<SerialManager>,
                       public USBDevice {
 public:
     SerialManager(const USBDeviceInfo& i, HumanoidBaseNode* const node,
-                  long long sync_base_latency = 2000,
-                  long long sync_tolerance = 3000,
+                  long long sync_duration = 1000000,
                   long long read_timeout = 1000000);
     ~SerialManager();
 
@@ -47,22 +46,30 @@ private:
     std::atomic_bool is_open_;
     std::atomic_bool is_sync_;
     std::atomic_bool wait_to_delete_;
-    pthread_t read_thread_;
+    std::thread read_thread_;
     HumanoidBaseNode* const node_;
-    long long sync_base_latency_;
-    long long sync_tolerance_;
+    long long sync_duration_;
     long long read_timeout_;
     long long last_sync_time_;
     uint8_t app_id_;
+    protocol_stream_t* unpack_stream_obj_;
+    std::vector<uint8_t> read_buffer_;
+    long long read_last_time_;
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr latency_publisher_;
 
     void create_read_thread_();
     void sync_time_();
     void reset_device_();
     inline long long get_timestamp_();
+    std::chrono::time_point<std::chrono::steady_clock,
+                            std::chrono::microseconds>
+    timestamp_to_chrono_(long long timestamp);
     void publish_latency_(double microseconds);
-
-    friend void* read_from_serial_port_(void* obj);
+    bool open_device_();
+    void initialize_device_();
+    void read_device_(std::function<void(void)> callback);
+    bool serial_alive_();
+    void communication_thread_();
 };
 
 #endif  // __SERIAL_MANAGER_H__

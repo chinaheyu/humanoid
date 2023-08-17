@@ -71,7 +71,7 @@ private:
     void neck_control_callback_(
         const humanoid_interface::msg::NeckControl::SharedPtr msg);
 
-    friend void* read_from_serial_port_(void* obj);
+    friend class SerialManager;
 };
 
 #endif  // __HUMANOID_BASE_NODE__
