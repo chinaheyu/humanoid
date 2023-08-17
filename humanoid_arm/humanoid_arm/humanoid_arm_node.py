@@ -1,9 +1,6 @@
-from typing import List
 import rclpy
 from rclpy.node import Node
 import rclpy.qos
-from rclpy.parameter import Parameter
-from rcl_interfaces.msg import SetParametersResult
 import moteus
 from dataclasses import dataclass
 import threading
@@ -22,7 +19,7 @@ class HumanoidArmNode(Node):
     def __init__(self):
         super().__init__('humanoid_arm')
         self._motors = {}
-        for i in range(14, 25):
+        for i in range(14, 15):
             self._motors[i] = MotorDataClass(id=i, controller=moteus.Controller(id=i))
         
         self._motor_feedback_publisher = self.create_publisher(MotorFeedback, "motor_feedback", rclpy.qos.QoSPresetProfiles.get_from_short_key("SENSOR_DATA"))
@@ -37,6 +34,7 @@ class HumanoidArmNode(Node):
 
     async def _control_loop(self):
         transport = moteus.Fdcanusb()
+        await transport.cycle([c.controller.make_stop() for c in self._motors.values()])
         while True:
             states = await transport.cycle([c.controller.make_position(position=c.target_position, query=True) for c in self._motors.values()])
             for state in states:
@@ -49,6 +47,7 @@ class HumanoidArmNode(Node):
                         torque=state.values[moteus.Register.TORQUE]
                     )
                 )
+            await asyncio.sleep(0.02)
 
 
 def main(args=None):
