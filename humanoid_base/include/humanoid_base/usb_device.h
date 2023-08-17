@@ -44,7 +44,8 @@ private:
 
 class USBDevice {
 public:
-    USBDevice(const USBDeviceInfo& info, unsigned char in_ep=0x81U, unsigned char out_ep=0x01U);
+    USBDevice(const USBDeviceInfo& info, unsigned char in_ep = 0x81U,
+              unsigned char out_ep = 0x01U, unsigned char cmd_ep = 0x82U);
     ~USBDevice();
 
     bool init();
@@ -53,13 +54,16 @@ public:
 
     long long write(uint8_t* buf, size_t len);
 
+    bool reset();
+
 protected:
     const USBDeviceInfo info_;
 
 private:
-    libusb_device_handle* dev_handle;
+    libusb_device_handle* dev_handle_;
     unsigned char in_ep_;
     unsigned char out_ep_;
+    unsigned char cmd_ep_;
 };
 
 #endif  // __USB_DEVICE_H__

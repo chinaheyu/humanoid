@@ -2,9 +2,7 @@
 
 #include <alloca.h>
 
-#include <cerrno>
 #include <chrono>
-#include <cstdint>
 
 #include "humanoid_base/humanoid_base_node.h"
 #include "humanoid_base/protocol_def.h"
@@ -14,38 +12,40 @@ void* read_from_serial_port_(void* obj);
 
 SerialManager::SerialManager(const USBDeviceInfo& i,
                              HumanoidBaseNode* const node,
-                             long long sync_base_latency,
-                             long long sync_tolerance, long long read_timeout)
+                             long long sync_duration, long long read_timeout)
     : USBDevice(i),
       is_open_(false),
       is_sync_(false),
       wait_to_delete_(false),
       node_(node),
-      sync_base_latency_(sync_base_latency),
-      sync_tolerance_(sync_tolerance),
+      sync_duration_(sync_duration),
       read_timeout_(read_timeout),
-      last_sync_time_(0) {
+      last_sync_time_(0),
+      app_id_(0),
+      read_buffer_(4096, 0) {
     latency_publisher_ = node_->create_publisher<std_msgs::msg::Float64>(
         "latency/s" + info_.serial_number, 10);
-    create_read_thread_();
+    unpack_stream_obj_ = protocol_create_unpack_stream(1000, true);
+    create_communication_thread_();
 }
 
 SerialManager::~SerialManager() {
     is_open_ = false;
-    pthread_join(read_thread_, nullptr);
+    if (read_thread_.joinable()) {
+        read_thread_.join();
+    }
+    protocol_free_unpack_stream(unpack_stream_obj_);
 }
 
 void SerialManager::sync_time_() {
     long long current_time = get_timestamp_();
-    if (current_time - last_sync_time_ > 1000000) {
-        RCLCPP_DEBUG_STREAM(node_->get_logger(),
-                            "Sync device time (timestamp = "
-                                << current_time << " us): " << info_);
-        cmd_sync_t msg;
-        msg.timestamp = current_time;
-        send_message_to_device(CMD_SYNC, msg);
-        last_sync_time_ = current_time;
-    }
+    RCLCPP_DEBUG_STREAM(
+        node_->get_logger(),
+        "Sync device time (timestamp = " << current_time << " us): " << info_);
+    cmd_sync_t msg;
+    msg.timestamp = current_time;
+    send_message_to_device(CMD_SYNC, msg);
+    last_sync_time_ = current_time;
 }
 
 long long SerialManager::get_timestamp_() {
@@ -54,16 +54,22 @@ long long SerialManager::get_timestamp_() {
         .count();
 }
 
+std::chrono::time_point<std::chrono::steady_clock, std::chrono::microseconds>
+SerialManager::timestamp_to_chrono_(long long timestamp) {
+    return std::chrono::time_point<std::chrono::steady_clock,
+                                   std::chrono::microseconds>(
+        std::chrono::microseconds(timestamp));
+}
+
 bool SerialManager::is_wait_to_delete() { return wait_to_delete_.load(); }
 
-const USBDeviceInfo& SerialManager::get_serial_info() const {
-    return info_;
-}
+const USBDeviceInfo& SerialManager::get_serial_info() const { return info_; }
 
 void SerialManager::reset_device_() {
     RCLCPP_WARN_STREAM(node_->get_logger(), "Reset device: " << info_);
     is_open_ = false;
-    // send_message_to_device(CMD_RESET);
+    send_message_to_device(CMD_RESET);
+    reset();
     wait_to_delete_ = true;
 }
 
@@ -73,26 +79,22 @@ void SerialManager::publish_latency_(double microseconds) {
     latency_publisher_->publish(msg);
 }
 
-void SerialManager::create_read_thread_() {
-    pthread_attr_t attr;
-    sched_param param{10};
+void SerialManager::create_communication_thread_() {
+    read_thread_ = std::thread(&SerialManager::communication_thread_, this);
 
-    pthread_attr_init(&attr);
-    pthread_attr_setschedpolicy(&attr, SCHED_RR);
-    pthread_attr_setinheritsched(&attr, PTHREAD_EXPLICIT_SCHED);
-    pthread_attr_setschedparam(&attr, &param);
+    // Set realtime policy
+    sched_param param{10};
     int ret =
-        pthread_create(&read_thread_, &attr, read_from_serial_port_, this);
+        pthread_setschedparam(read_thread_.native_handle(), SCHED_RR, &param);
     if (ret != 0) {
-        RCLCPP_WARN_STREAM(
-            node_->get_logger(),
-            "Cannot create thread (SCHED_RR): " << strerror(ret));
-        pthread_create(&read_thread_, nullptr, read_from_serial_port_, this);
+        RCLCPP_WARN_STREAM(node_->get_logger(),
+                           "Cannot set thread scheduling policy (SCHED_RR): "
+                               << strerror(ret));
     }
 }
 
 void SerialManager::send_message_to_device(uint16_t cmd_id) {
-    if (rclcpp::ok() && is_open_) {
+    if (serial_alive_()) {
         uint8_t* frame_buffer = reinterpret_cast<uint8_t*>(
             alloca(protocol_calculate_frame_size(0)));
         const size_t frame_size =
@@ -101,107 +103,110 @@ void SerialManager::send_message_to_device(uint16_t cmd_id) {
     }
 }
 
-void* read_from_serial_port_(void* obj) {
-    SerialManager* serial = reinterpret_cast<SerialManager*>(obj);
-    // Open port.
-    if (serial->init()) {
-        RCLCPP_INFO_STREAM(serial->node_->get_logger(),
-                           CL_BOLDGREEN
-                               << "Open humanoid serial device success: "
-                               << serial->info_ << CL_RESET);
-        serial->is_open_ = true;
+bool SerialManager::open_device_() {
+    if (init()) {
+        RCLCPP_INFO_STREAM(
+            node_->get_logger(),
+            CL_BOLDGREEN << "Open humanoid serial device success: " << info_
+                         << CL_RESET);
+        is_open_ = true;
+        return true;
     } else {
-        RCLCPP_ERROR_STREAM(
-            serial->node_->get_logger(),
-            "Cannot open humanoid serial device: " << serial->info_);
-        serial->wait_to_delete_ = true;
-        return nullptr;
+        RCLCPP_ERROR_STREAM(node_->get_logger(),
+                            "Cannot open humanoid serial device: " << info_);
+        return false;
     }
+}
 
+void SerialManager::initialize_device_() {
     // Sync time.
-    serial->sync_time_();
+    sync_time_();
 
     // Read board app and initialize motor if needed
-    serial->send_message_to_device(CMD_READ_APP_ID);
-    long long read_app_id_last_time = serial->get_timestamp_();
+    send_message_to_device(CMD_READ_APP_ID);
+    long long read_app_id_last_time = get_timestamp_();
+    while (serial_alive_() && read_app_id_last_time > 0) {
+        read_and_parse_([&]() {
+            if (unpack_stream_obj_->cmd_id == CMD_READ_APP_ID_FEEDBACK &&
+                unpack_stream_obj_->data_len ==
+                    sizeof(cmd_read_app_id_feedback_t)) {
+                app_id_ = reinterpret_cast<cmd_read_app_id_feedback_t*>(
+                              unpack_stream_obj_->data)
+                              ->app_id;
 
-    // Timeout detect
-    long long device_read_last_time = serial->get_timestamp_();
-
-    // Unpack message.
-    protocol_stream_t* unpack_stream_obj =
-        protocol_create_unpack_stream(1000, true);
-    std::vector<uint8_t> buffer(4096, 0);
-    long long ret;
-    while (rclcpp::ok() && serial->is_open_) {
-        ret = serial->read(buffer.data(), buffer.size());
-        if (ret > 0) {
-            device_read_last_time = serial->get_timestamp_();
-        } else {
-            if (serial->get_timestamp_() - device_read_last_time > 1e6) {
-                serial->reset_device_();
-            }
-        }
-        for (long long i = 0; i < ret; ++i) {
-            if (protocol_unpack_byte(unpack_stream_obj, buffer[i])) {
-                // Read board app
-                if (read_app_id_last_time > 0) {
-                    if (unpack_stream_obj->cmd_id == CMD_READ_APP_ID_FEEDBACK &&
-                        unpack_stream_obj->data_len ==
-                            sizeof(cmd_read_app_id_feedback_t)) {
-                        const uint8_t app_id =
-                            reinterpret_cast<cmd_read_app_id_feedback_t*>(
-                                unpack_stream_obj->data)
-                                ->app_id;
-
-                        // Initialize Leg Motor
-                        if (app_id == 2 || app_id == 3 || app_id == 4) {
-                            serial->send_message_to_device(
-                                CMD_INITIALIZE_MOTOR);
-                        }
-
-                        read_app_id_last_time = -1;
-                    } else {
-                        if (serial->get_timestamp_() - read_app_id_last_time >
-                            1e6) {
-                            serial->send_message_to_device(CMD_READ_APP_ID);
-                            read_app_id_last_time = serial->get_timestamp_();
-                        }
-                    }
+                // Initialize Leg Motor
+                if (app_id_ == 2 || app_id_ == 3 || app_id_ == 4) {
+                    send_message_to_device(CMD_INITIALIZE_MOTOR);
                 }
-
-                // Sync time.
-                long long device_time =
-                    *reinterpret_cast<long long*>(unpack_stream_obj->data);
-                long long err = serial->get_timestamp_() - device_time;
-                serial->publish_latency_(err);
-                if (err >
-                        serial->sync_base_latency_ + serial->sync_tolerance_ ||
-                    err <
-                        serial->sync_base_latency_ - serial->sync_tolerance_) {
-                    RCLCPP_DEBUG_STREAM(serial->node_->get_logger(),
-                                        "Sync device timestamp faliure (err = "
-                                            << err
-                                            << " us): " << serial->info_);
-                    serial->is_sync_ = false;
-                    serial->sync_time_();
-                } else if (!serial->is_sync_) {
-                    serial->is_sync_ = true;
-                }
-
-                // Received frame.
-                if (serial->is_sync_) {
-                    // One time copy.
-                    serial->node_->dispatch_frame_(
-                        serial->shared_from_this(), unpack_stream_obj->cmd_id,
-                        std::make_shared<std::vector<uint8_t>>(
-                            unpack_stream_obj->data,
-                            unpack_stream_obj->data +
-                                unpack_stream_obj->data_len));
+                read_app_id_last_time = -1;
+            } else {
+                // Read app id timeout, retry
+                if (get_timestamp_() - read_app_id_last_time > 1e6) {
+                    send_message_to_device(CMD_READ_APP_ID);
+                    read_app_id_last_time = get_timestamp_();
                 }
             }
+        });
+        std::this_thread::sleep_for(std::chrono::microseconds(1000));
+    }
+
+    // Check if faliure
+    if (read_app_id_last_time > 0) {
+        reset_device_();
+    }
+}
+
+void SerialManager::read_and_parse_(std::function<void(void)> callback) {
+    // Read from usb
+    long long ret = read(read_buffer_.data(), read_buffer_.size());
+    if (ret > 0) read_last_time_ = get_timestamp_();
+
+    // Unpack data frame
+    for (long long i = 0; i < ret; ++i) {
+        if (protocol_unpack_byte(unpack_stream_obj_, read_buffer_[i])) {
+            publish_latency_(get_timestamp_() - (*reinterpret_cast<long long*>(
+                                                    unpack_stream_obj_->data)));
+            callback();
         }
     }
-    protocol_free_unpack_stream(unpack_stream_obj);
-    return nullptr;
+}
+
+bool SerialManager::serial_alive_() {
+    return rclcpp::ok() && is_open_ &&
+           (get_timestamp_() - read_last_time_ < read_timeout_);
+}
+
+void SerialManager::communication_thread_() {
+    // Open port.
+    if (!open_device_()) {
+        wait_to_delete_ = true;
+        return;
+    }
+
+    // Initialize device
+    initialize_device_();
+
+    // Unpack data from device
+    while (serial_alive_()) {
+        long long current_timestamp = get_timestamp_();
+
+        // Sync device time
+        if (current_timestamp - last_sync_time_ > sync_duration_) {
+            sync_time_();
+        }
+
+        // Read and parse stream
+        read_and_parse_([this]() {
+            // One time copy
+            node_->dispatch_frame_(
+                shared_from_this(), unpack_stream_obj_->cmd_id,
+                std::make_shared<std::vector<uint8_t>>(
+                    unpack_stream_obj_->data,
+                    unpack_stream_obj_->data + unpack_stream_obj_->data_len));
+        });
+
+        // 1 ms period
+        std::this_thread::sleep_until(
+            timestamp_to_chrono_(current_timestamp + 1000));
+    }
 }

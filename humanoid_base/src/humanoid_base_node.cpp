@@ -19,15 +19,14 @@ HumanoidBaseNode::HumanoidBaseNode()
       head_serial_{"unknown"} {
     assert(protocol_is_supported());
 
+    // Loading parameters add listing to parameter changing
     parameters_client_ = std::make_shared<rclcpp::AsyncParametersClient>(this);
     parameter_event_sub_ = parameters_client_->on_parameter_event(
         std::bind(&HumanoidBaseNode::update_parameters_callback_, this,
                   std::placeholders::_1));
     load_parameters_();
 
-    scan_device_timer_ = this->create_wall_timer(
-        std::chrono::seconds(2),
-        std::bind(&HumanoidBaseNode::scan_device_, this));
+    // Create ros publisher and subscription
     imu_publisher_ = this->create_publisher<sensor_msgs::msg::Imu>(
         "imu", rclcpp::SensorDataQoS());
     motor_feedback_publisher_ =
@@ -52,7 +51,12 @@ HumanoidBaseNode::HumanoidBaseNode()
         this->create_publisher<humanoid_interface::msg::HeadFeedback>(
             "head_feedback", rclcpp::SensorDataQoS());
 
-    // Initialize
+    // Create timer for auto scan usb device
+    scan_device_timer_ = this->create_wall_timer(
+        std::chrono::seconds(2),
+        std::bind(&HumanoidBaseNode::scan_device_, this));
+
+    // Do first scan
     scan_device_();
 }
 
@@ -62,20 +66,10 @@ void HumanoidBaseNode::dispatch_frame_(
     // Reveived feedback from serial device.
     switch (cmd_id) {
         case CMD_GYRO_FEEDBACK:
-            publish_imu_(
-                "s" + from->get_serial_info().serial_number,
-                get_message_<cmd_gyro_feedback_t>(data)->timestamp,
-                get_message_<cmd_gyro_feedback_t>(data)->roll / 1000.0,
-                get_message_<cmd_gyro_feedback_t>(data)->pitch / 1000.0,
-                get_message_<cmd_gyro_feedback_t>(data)->yaw / 1000.0);
+            publish_imu_("s" + from->get_serial_info().serial_number, data);
             break;
         case CMD_MOTOR_FEEDBACK:
-            publish_motor_feedback_(
-                get_message_<cmd_motor_feedback_t>(data)->timestamp,
-                get_message_<cmd_motor_feedback_t>(data)->id,
-                get_message_<cmd_motor_feedback_t>(data)->position / 1000.0,
-                get_message_<cmd_motor_feedback_t>(data)->velocity / 1000.0,
-                get_message_<cmd_motor_feedback_t>(data)->torque / 1000.0);
+            publish_motor_feedback_(data);
             break;
         case CMD_HEAD_FEEDBACK:
             publish_head_feedback_(data);
@@ -114,28 +108,32 @@ void HumanoidBaseNode::scan_device_() {
     }
 }
 
-void HumanoidBaseNode::publish_imu_(const std::string& frame_id,
-                                    long long timestamp, float roll,
-                                    float pitch, float yaw) {
+void HumanoidBaseNode::publish_imu_(
+    const std::string& frame_id, std::shared_ptr<std::vector<uint8_t>>& data) {
     tf2::Quaternion q;
-    q.setRPY(roll, pitch, yaw);
+    q.setRPY(get_message_<cmd_gyro_feedback_t>(data)->roll / 1000.0,
+             get_message_<cmd_gyro_feedback_t>(data)->pitch / 1000.0,
+             get_message_<cmd_gyro_feedback_t>(data)->yaw / 1000.0);
 
     sensor_msgs::msg::Imu msg;
     msg.header.frame_id = frame_id;
-    msg.header.stamp = rclcpp::Time(timestamp * 1000, RCL_STEADY_TIME);
+    msg.header.stamp =
+        rclcpp::Time(get_message_<cmd_gyro_feedback_t>(data)->timestamp * 1000,
+                     RCL_STEADY_TIME);
     msg.orientation = tf2::toMsg(q);
     imu_publisher_->publish(msg);
 }
 
-void HumanoidBaseNode::publish_motor_feedback_(long long timestamp, uint8_t id,
-                                               float position, float velocity,
-                                               float torque) {
+void HumanoidBaseNode::publish_motor_feedback_(
+    std::shared_ptr<std::vector<uint8_t>>& data) {
     humanoid_interface::msg::MotorFeedback msg;
-    msg.stamp = rclcpp::Time(timestamp * 1000, RCL_STEADY_TIME);
-    msg.id = id;
-    msg.position = position;
-    msg.velocity = velocity;
-    msg.torque = torque;
+    msg.stamp =
+        rclcpp::Time(get_message_<cmd_motor_feedback_t>(data)->timestamp * 1000,
+                     RCL_STEADY_TIME);
+    msg.id = get_message_<cmd_motor_feedback_t>(data)->id;
+    msg.position = get_message_<cmd_motor_feedback_t>(data)->position / 1000.0;
+    msg.velocity = get_message_<cmd_motor_feedback_t>(data)->velocity / 1000.0;
+    msg.torque = get_message_<cmd_motor_feedback_t>(data)->torque / 1000.0;
     motor_feedback_publisher_->publish(msg);
 }
 
@@ -276,11 +274,10 @@ void HumanoidBaseNode::update_parameters_callback_(
             // Update head parameter
             if (param.name.compare("head") == 0) {
                 head_serial_ = param.value.string_value;
-                RCLCPP_INFO_STREAM(this->get_logger(),
-                                   CL_BOLDGREEN
-                                       << "New head mapping: " << param.name
-                                       << " -> " << param.value.string_value
-                                       << CL_RESET);
+                RCLCPP_INFO_STREAM(
+                    this->get_logger(),
+                    CL_BOLDGREEN << "New head mapping: " << param.name << " -> "
+                                 << param.value.string_value << CL_RESET);
             }
         }
     }
@@ -323,11 +320,11 @@ void HumanoidBaseNode::update_parameters_callback_(
             // Update head parameter
             if (param.name.compare("head") == 0) {
                 head_serial_ = param.value.string_value;
-                RCLCPP_INFO_STREAM(
-                    this->get_logger(),
-                    CL_BOLDGREEN << "Change head mapping: " << param.name
-                                 << " -> " << param.value.string_value
-                                 << CL_RESET);
+                RCLCPP_INFO_STREAM(this->get_logger(),
+                                   CL_BOLDGREEN
+                                       << "Change head mapping: " << param.name
+                                       << " -> " << param.value.string_value
+                                       << CL_RESET);
             }
         }
     }

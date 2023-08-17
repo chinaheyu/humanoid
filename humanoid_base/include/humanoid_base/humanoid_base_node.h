@@ -11,10 +11,10 @@
 
 #include "humanoid_base/serial_manager.h"
 #include "humanoid_interface/msg/face_control.hpp"
+#include "humanoid_interface/msg/head_feedback.hpp"
 #include "humanoid_interface/msg/motor_control.hpp"
 #include "humanoid_interface/msg/motor_feedback.hpp"
 #include "humanoid_interface/msg/neck_control.hpp"
-#include "humanoid_interface/msg/head_feedback.hpp"
 
 class HumanoidBaseNode : public rclcpp::Node {
 public:
@@ -27,7 +27,8 @@ private:
     std::string head_serial_;
     rclcpp::TimerBase::ConstSharedPtr scan_device_timer_;
     rclcpp::AsyncParametersClient::SharedPtr parameters_client_;
-    rclcpp::Subscription<rcl_interfaces::msg::ParameterEvent>::SharedPtr parameter_event_sub_;
+    rclcpp::Subscription<rcl_interfaces::msg::ParameterEvent>::SharedPtr
+        parameter_event_sub_;
     rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_publisher_;
     rclcpp::Subscription<humanoid_interface::msg::MotorControl>::SharedPtr
         motor_control_subscription_;
@@ -54,13 +55,12 @@ private:
 
     void scan_device_();
 
-    void publish_imu_(const std::string& frame_id, long long timestamp,
-                      float roll, float pitch, float yaw);
-    
+    void publish_imu_(const std::string& frame_id,
+                      std::shared_ptr<std::vector<uint8_t>>& data);
+
     void publish_head_feedback_(std::shared_ptr<std::vector<uint8_t>>& data);
 
-    void publish_motor_feedback_(long long timestamp, uint8_t id,
-                                 float position, float velocity, float torque);
+    void publish_motor_feedback_(std::shared_ptr<std::vector<uint8_t>>& data);
 
     void motor_control_callback_(
         const humanoid_interface::msg::MotorControl::SharedPtr msg);
@@ -71,7 +71,7 @@ private:
     void neck_control_callback_(
         const humanoid_interface::msg::NeckControl::SharedPtr msg);
 
-    friend void* read_from_serial_port_(void* obj);
+    friend class SerialManager;
 };
 
 #endif  // __HUMANOID_BASE_NODE__
