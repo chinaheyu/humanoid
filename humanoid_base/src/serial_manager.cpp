@@ -26,7 +26,7 @@ SerialManager::SerialManager(const USBDeviceInfo& i,
     latency_publisher_ = node_->create_publisher<std_msgs::msg::Float64>(
         "latency/s" + info_.serial_number, 10);
     unpack_stream_obj_ = protocol_create_unpack_stream(1000, true);
-    create_read_thread_();
+    create_communication_thread_();
 }
 
 SerialManager::~SerialManager() {
@@ -79,7 +79,7 @@ void SerialManager::publish_latency_(double microseconds) {
     latency_publisher_->publish(msg);
 }
 
-void SerialManager::create_read_thread_() {
+void SerialManager::create_communication_thread_() {
     read_thread_ = std::thread(&SerialManager::communication_thread_, this);
 
     // Set realtime policy
@@ -94,7 +94,7 @@ void SerialManager::create_read_thread_() {
 }
 
 void SerialManager::send_message_to_device(uint16_t cmd_id) {
-    if (rclcpp::ok() && is_open_) {
+    if (serial_alive_()) {
         uint8_t* frame_buffer = reinterpret_cast<uint8_t*>(
             alloca(protocol_calculate_frame_size(0)));
         const size_t frame_size =
@@ -126,7 +126,7 @@ void SerialManager::initialize_device_() {
     send_message_to_device(CMD_READ_APP_ID);
     long long read_app_id_last_time = get_timestamp_();
     while (serial_alive_() && read_app_id_last_time > 0) {
-        read_device_([&]() {
+        read_and_parse_([&]() {
             if (unpack_stream_obj_->cmd_id == CMD_READ_APP_ID_FEEDBACK &&
                 unpack_stream_obj_->data_len ==
                     sizeof(cmd_read_app_id_feedback_t)) {
@@ -140,6 +140,7 @@ void SerialManager::initialize_device_() {
                 }
                 read_app_id_last_time = -1;
             } else {
+                // Read app id timeout, retry
                 if (get_timestamp_() - read_app_id_last_time > 1e6) {
                     send_message_to_device(CMD_READ_APP_ID);
                     read_app_id_last_time = get_timestamp_();
@@ -155,14 +156,16 @@ void SerialManager::initialize_device_() {
     }
 }
 
-void SerialManager::read_device_(std::function<void(void)> callback) {
+void SerialManager::read_and_parse_(std::function<void(void)> callback) {
+    // Read from usb
     long long ret = read(read_buffer_.data(), read_buffer_.size());
-    if (ret > 0) {
-        read_last_time_ = get_timestamp_();
-    }
+    if (ret > 0) read_last_time_ = get_timestamp_();
+
+    // Unpack data frame
     for (long long i = 0; i < ret; ++i) {
         if (protocol_unpack_byte(unpack_stream_obj_, read_buffer_[i])) {
-            publish_latency_(get_timestamp_() - (*reinterpret_cast<long long*>(unpack_stream_obj_->data)));
+            publish_latency_(get_timestamp_() - (*reinterpret_cast<long long*>(
+                                                    unpack_stream_obj_->data)));
             callback();
         }
     }
@@ -192,7 +195,9 @@ void SerialManager::communication_thread_() {
             sync_time_();
         }
 
-        read_device_([this]() {
+        // Read and parse stream
+        read_and_parse_([this]() {
+            // One time copy
             node_->dispatch_frame_(
                 shared_from_this(), unpack_stream_obj_->cmd_id,
                 std::make_shared<std::vector<uint8_t>>(

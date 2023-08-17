@@ -4,6 +4,7 @@
 #include <sensor_msgs/msg/imu.h>
 
 #include <atomic>
+#include <functional>
 #include <memory>
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/float64.hpp>
@@ -28,7 +29,7 @@ public:
 
     template <typename T>
     void send_message_to_device(uint16_t cmd_id, const T& msg) {
-        if (rclcpp::ok() && is_open_) {
+        if (serial_alive_()) {
             uint8_t* frame_buffer = reinterpret_cast<uint8_t*>(
                 alloca(protocol_calculate_frame_size(sizeof(T))));
             const size_t frame_size = protocol_pack_data_to_buffer(
@@ -57,7 +58,7 @@ private:
     long long read_last_time_;
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr latency_publisher_;
 
-    void create_read_thread_();
+    void create_communication_thread_();
     void sync_time_();
     void reset_device_();
     inline long long get_timestamp_();
@@ -67,7 +68,7 @@ private:
     void publish_latency_(double microseconds);
     bool open_device_();
     void initialize_device_();
-    void read_device_(std::function<void(void)> callback);
+    void read_and_parse_(std::function<void(void)> callback);
     bool serial_alive_();
     void communication_thread_();
 };
