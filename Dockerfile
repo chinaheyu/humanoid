@@ -19,4 +19,5 @@ RUN sed --in-place --expression \
       '$isource "$OVERLAY_WS/install/setup.bash"' \
       /ros_entrypoint.sh
 
-CMD ["ros2", "launch", "humanoid_base", "humanoid_base.py"]
+ENV ROS_DOMAIN_ID=1
+CMD ["ros2", "launch", "humanoid_bringup", "bringup.py"]

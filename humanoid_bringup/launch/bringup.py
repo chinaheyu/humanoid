@@ -17,16 +17,19 @@ def generate_launch_description():
         Node(
             package='humanoid_web',
             executable='humanoid_web_node',
-            name='humanoid_web'
+            name='humanoid_web',
+            respawn=True
         ),
         Node(
             package='humanoid_chat',
             executable='humanoid_chat_node',
-            name='humanoid_chat'
+            name='humanoid_chat',
+            respawn=True
         ),
         Node(
             package='humanoid_arm',
             executable='humanoid_arm_node',
-            name='humanoid_arm'
+            name='humanoid_arm',
+            respawn=True
         )
     ])
