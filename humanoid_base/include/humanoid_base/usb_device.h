@@ -7,6 +7,8 @@
 #include <string>
 #include <vector>
 
+namespace humanoid {
+
 struct USBDeviceInfo {
     libusb_device* device;
     unsigned short product_id;
@@ -65,5 +67,7 @@ private:
     unsigned char out_ep_;
     unsigned char cmd_ep_;
 };
+
+}  // namespace humanoid
 
 #endif  // __USB_DEVICE_H__

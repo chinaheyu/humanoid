@@ -11,12 +11,10 @@
 #include "humanoid_base/protocol_def.h"
 #include "humanoid_base/rich.h"
 
-HumanoidBaseNode::HumanoidBaseNode()
-    : rclcpp::Node("humanoid_base",
-                   rclcpp::NodeOptions()
-                       .allow_undeclared_parameters(true)
-                       .automatically_declare_parameters_from_overrides(true)),
-      head_serial_{"unknown"} {
+namespace humanoid {
+
+HumanoidBaseNode::HumanoidBaseNode(const rclcpp::NodeOptions& options)
+    : rclcpp::Node("humanoid_base", options), head_serial_{"unknown"} {
     assert(protocol_is_supported());
 
     // Loading parameters add listing to parameter changing
@@ -329,10 +327,7 @@ void HumanoidBaseNode::update_parameters_callback_(
         }
     }
 }
+}  // namespace humanoid
 
-int main(int argc, char** argv) {
-    rclcpp::init(argc, argv);
-    rclcpp::spin(std::make_shared<HumanoidBaseNode>());
-    rclcpp::shutdown();
-    return 0;
-}
+#include "rclcpp_components/register_node_macro.hpp"
+RCLCPP_COMPONENTS_REGISTER_NODE(humanoid::HumanoidBaseNode)

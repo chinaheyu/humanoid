@@ -20,9 +20,7 @@ class HumanoidChatNode(Node):
         # initialize azure speech service
         self._azure = AzureSpeechService(
             os.environ.get('AZURE_SPEECH_KEY'),
-            os.environ.get('AZURE_SPEECH_REGION'),
-            microphone_device="sysdefault:CARD=DELI14870",
-            speaker_device="sysdefault:CARD=DELI14870"
+            os.environ.get('AZURE_SPEECH_REGION')
         )
         
         # initialize chat model
