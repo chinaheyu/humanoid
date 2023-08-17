@@ -1,6 +1,8 @@
 #include "humanoid_base/usb_device.h"
+
 #include <iostream>
 
+namespace humanoid {
 LibUSBWarpper::LibUSBWarpper() : ctx_(nullptr) { libusb_init(&ctx_); }
 
 LibUSBWarpper::~LibUSBWarpper() { libusb_exit(ctx_); }
@@ -86,7 +88,8 @@ long long USBDevice::read(uint8_t *buf, size_t len) {
     int nread, ret;
     ret = libusb_bulk_transfer(dev_handle_, in_ep_, buf, len, &nread, 0);
     if (ret != LIBUSB_SUCCESS) {
-        std::cerr << std::string(libusb_strerror(libusb_error(ret))) << std::endl;
+        std::cerr << std::string(libusb_strerror(libusb_error(ret)))
+                  << std::endl;
         return -1;
     }
     return nread;
@@ -96,7 +99,8 @@ long long USBDevice::write(uint8_t *buf, size_t len) {
     int nwrite, ret;
     ret = libusb_bulk_transfer(dev_handle_, out_ep_, buf, len, &nwrite, 0);
     if (ret != LIBUSB_SUCCESS) {
-        std::cerr << std::string(libusb_strerror(libusb_error(ret))) << std::endl;
+        std::cerr << std::string(libusb_strerror(libusb_error(ret)))
+                  << std::endl;
         return -1;
     }
     return nwrite;
@@ -105,3 +109,4 @@ long long USBDevice::write(uint8_t *buf, size_t len) {
 bool USBDevice::reset() {
     return libusb_reset_device(dev_handle_) == LIBUSB_SUCCESS;
 }
+}  // namespace humanoid

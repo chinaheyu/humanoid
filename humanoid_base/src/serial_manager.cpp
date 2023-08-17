@@ -8,7 +8,7 @@
 #include "humanoid_base/protocol_def.h"
 #include "humanoid_base/rich.h"
 
-void* read_from_serial_port_(void* obj);
+namespace humanoid {
 
 SerialManager::SerialManager(const USBDeviceInfo& i,
                              HumanoidBaseNode* const node,
@@ -210,3 +210,4 @@ void SerialManager::communication_thread_() {
             timestamp_to_chrono_(current_timestamp + 1000));
     }
 }
+}  // namespace humanoid

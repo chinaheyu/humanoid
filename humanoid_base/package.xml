@@ -8,6 +8,7 @@
   <license>TODO: License declaration</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_cmake_auto</buildtool_depend>
 
   <depend>rclcpp</depend>
   <depend>tf2</depend>
@@ -15,6 +16,7 @@
   <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
   <depend>humanoid_interface</depend>
+  <depend>rclcpp_components</depend>
   <build_depend>libusb-1.0-dev</build_depend>
   <exec_depend>libusb-1.0</exec_depend>
 
