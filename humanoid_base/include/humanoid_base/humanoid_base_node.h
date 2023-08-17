@@ -10,15 +10,19 @@
 #include <unordered_map>
 
 #include "humanoid_base/serial_manager.h"
+#include "humanoid_base/visibility_control.h"
 #include "humanoid_interface/msg/face_control.hpp"
 #include "humanoid_interface/msg/head_feedback.hpp"
 #include "humanoid_interface/msg/motor_control.hpp"
 #include "humanoid_interface/msg/motor_feedback.hpp"
 #include "humanoid_interface/msg/neck_control.hpp"
 
+namespace humanoid {
+
 class HumanoidBaseNode : public rclcpp::Node {
 public:
-    HumanoidBaseNode();
+    COMPOSITION_PUBLIC
+    explicit HumanoidBaseNode(const rclcpp::NodeOptions& options);
 
 private:
     std::mutex serials_container_mutex_;
@@ -73,5 +77,7 @@ private:
 
     friend class SerialManager;
 };
+
+}  // namespace humanoid
 
 #endif  // __HUMANOID_BASE_NODE__

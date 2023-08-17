@@ -13,6 +13,8 @@
 #include "humanoid_base/protocol.h"
 #include "humanoid_base/usb_device.h"
 
+namespace humanoid {
+
 class HumanoidBaseNode;
 
 class SerialManager : public std::enable_shared_from_this<SerialManager>,
@@ -72,5 +74,7 @@ private:
     bool serial_alive_();
     void communication_thread_();
 };
+
+}  // namespace humanoid
 
 #endif  // __SERIAL_MANAGER_H__
