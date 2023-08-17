@@ -62,8 +62,10 @@ Setup UDEV rule and scheduler permission.
 
 ```bash
 cd ~/ros2_ws/src/humanoid/humanoid_base/scripts
-./setup_udev_rules.sh
+sudo ./setup_udev_rules.sh
 ./setup_scheduler_permission.sh
+cd ~/ros2_ws/src/humanoid/humanoid_arm/scripts
+sudo ./setup_udev_rules.sh
 ```
 
 Note that the scheduler permission settings will take effect after a reboot. You can check if the `ulimit -r` command outputs `98`.
