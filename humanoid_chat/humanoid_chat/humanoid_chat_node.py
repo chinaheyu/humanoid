@@ -67,6 +67,7 @@ class HumanoidChatNode(Node):
             self._azure.wait_speech_synthesising()
 
             # ASR
+            self.get_logger().info("Speech recognizing.")
             question = ""
             for response in self._azure.speech_to_text():
                 print(response[len(question):], end="", flush=True)
@@ -76,6 +77,7 @@ class HumanoidChatNode(Node):
                 continue
 
             # Chat and tts
+            self.get_logger().info("Generating response.")
             prev_response = ""
             synthesis_ptr = 0
             for response in self._chat_model.chat_stream(question):

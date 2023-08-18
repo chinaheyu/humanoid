@@ -55,7 +55,7 @@ class AuthorizeUrl:
 
 class SparkDesk:
     def __init__(self, app_id, api_key, api_secret):
-        self._url = AuthorizeUrl(api_key, api_secret, 'spark-api.xf-yun.com', '/v1.1/chat')
+        self._url = AuthorizeUrl(api_key, api_secret, 'spark-api.xf-yun.com', '/v2.1/chat')
         self._app_id = app_id
         self._chat_history = []
         self._total_response = ""
@@ -69,7 +69,7 @@ class SparkDesk:
             },
             "parameter": {
                 "chat": {
-                    "domain": "general",
+                    "domain": "generalv2",
                     "random_threshold": 0.5,
                     "max_tokens": 2048,
                     "auditing": "default"
