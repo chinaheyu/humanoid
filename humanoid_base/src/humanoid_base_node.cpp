@@ -8,7 +8,6 @@
 #include <rclcpp/rclcpp.hpp>
 #include <string>
 
-#include "humanoid_base/protocol_def.h"
 #include "humanoid_base/rich.h"
 
 namespace humanoid {
@@ -60,17 +59,27 @@ HumanoidBaseNode::HumanoidBaseNode(const rclcpp::NodeOptions& options)
 
 void HumanoidBaseNode::dispatch_frame_(
     const std::shared_ptr<const SerialManager>& from, uint16_t cmd_id,
-    std::shared_ptr<std::vector<uint8_t>>&& data) {
+    const uint8_t* data, size_t len) {
     // Reveived feedback from serial device.
     switch (cmd_id) {
         case CMD_GYRO_FEEDBACK:
-            publish_imu_("s" + from->get_serial_info().serial_number, data);
+            if (len == sizeof(cmd_gyro_feedback_t)) {
+                publish_imu_(
+                    "s" + from->get_serial_info().serial_number,
+                    ZeroCopyMessage<uint8_t, cmd_gyro_feedback_t>(data));
+            }
             break;
         case CMD_MOTOR_FEEDBACK:
-            publish_motor_feedback_(data);
+            if (len == sizeof(cmd_motor_feedback_t)) {
+                publish_motor_feedback_(
+                    ZeroCopyMessage<uint8_t, cmd_motor_feedback_t>(data));
+            }
             break;
         case CMD_HEAD_FEEDBACK:
-            publish_head_feedback_(data);
+            if (len == sizeof(cmd_head_feedback_t)) {
+                publish_head_feedback_(
+                    ZeroCopyMessage<uint8_t, cmd_head_feedback_t>(data));
+            }
             break;
         default:
             break;
@@ -107,54 +116,49 @@ void HumanoidBaseNode::scan_device_() {
 }
 
 void HumanoidBaseNode::publish_imu_(
-    const std::string& frame_id, std::shared_ptr<std::vector<uint8_t>>& data) {
+    const std::string& frame_id,
+    const ZeroCopyMessage<uint8_t, cmd_gyro_feedback_t>& data) {
     tf2::Quaternion q;
-    q.setRPY(get_message_<cmd_gyro_feedback_t>(data)->roll / 1000.0,
-             get_message_<cmd_gyro_feedback_t>(data)->pitch / 1000.0,
-             get_message_<cmd_gyro_feedback_t>(data)->yaw / 1000.0);
+    q.setRPY(data.get_message().roll / 1000.0,
+             data.get_message().pitch / 1000.0,
+             data.get_message().yaw / 1000.0);
 
     sensor_msgs::msg::Imu msg;
     msg.header.frame_id = frame_id;
     msg.header.stamp =
-        rclcpp::Time(get_message_<cmd_gyro_feedback_t>(data)->timestamp * 1000,
+        rclcpp::Time(data.get_message().timestamp * 1000,
                      RCL_STEADY_TIME);
     msg.orientation = tf2::toMsg(q);
     imu_publisher_->publish(msg);
 }
 
 void HumanoidBaseNode::publish_motor_feedback_(
-    std::shared_ptr<std::vector<uint8_t>>& data) {
+    const ZeroCopyMessage<uint8_t, cmd_motor_feedback_t>& data) {
     humanoid_interface::msg::MotorFeedback msg;
     msg.stamp =
-        rclcpp::Time(get_message_<cmd_motor_feedback_t>(data)->timestamp * 1000,
+        rclcpp::Time(data.get_message().timestamp * 1000,
                      RCL_STEADY_TIME);
-    msg.id = get_message_<cmd_motor_feedback_t>(data)->id;
-    msg.position = get_message_<cmd_motor_feedback_t>(data)->position / 1000.0;
-    msg.velocity = get_message_<cmd_motor_feedback_t>(data)->velocity / 1000.0;
-    msg.torque = get_message_<cmd_motor_feedback_t>(data)->torque / 1000.0;
+    msg.id = data.get_message().id;
+    msg.position = data.get_message().position / 1000.0;
+    msg.velocity = data.get_message().velocity / 1000.0;
+    msg.torque = data.get_message().torque / 1000.0;
     motor_feedback_publisher_->publish(msg);
 }
 
 void HumanoidBaseNode::publish_head_feedback_(
-    std::shared_ptr<std::vector<uint8_t>>& data) {
+    const ZeroCopyMessage<uint8_t, cmd_head_feedback_t>& data) {
     humanoid_interface::msg::HeadFeedback msg;
     msg.stamp =
-        rclcpp::Time(get_message_<cmd_head_feedback_t>(data)->timestamp * 1000,
+        rclcpp::Time(data.get_message().timestamp * 1000,
                      RCL_STEADY_TIME);
     for (size_t i = 0; i < msg.pulse_width.size(); i++) {
         msg.pulse_width[i] =
-            get_message_<cmd_head_feedback_t>(data)->pulse_width[i];
+            data.get_message().pulse_width[i];
     }
     msg.pitch_velocity =
-        get_message_<cmd_head_feedback_t>(data)->pitch_velocity / 1000.0;
-    msg.yaw_angle = get_message_<cmd_head_feedback_t>(data)->yaw_angle / 1000.0;
+        data.get_message().pitch_velocity / 1000.0;
+    msg.yaw_angle = data.get_message().yaw_angle / 1000.0;
     head_feedback_publisher_->publish(msg);
-}
-
-template <typename T1, typename T2>
-inline const T1* HumanoidBaseNode::get_message_(T2 data) {
-    assert(data->size() == sizeof(T1));
-    return reinterpret_cast<const T1*>(&(*data)[0]);
 }
 
 void HumanoidBaseNode::motor_control_callback_(

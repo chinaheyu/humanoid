@@ -197,12 +197,10 @@ void SerialManager::communication_thread_() {
 
         // Read and parse stream
         read_and_parse_([this]() {
-            // One time copy
+            // Zero copy
             node_->dispatch_frame_(
                 shared_from_this(), unpack_stream_obj_->cmd_id,
-                std::make_shared<std::vector<uint8_t>>(
-                    unpack_stream_obj_->data,
-                    unpack_stream_obj_->data + unpack_stream_obj_->data_len));
+                unpack_stream_obj_->data, unpack_stream_obj_->data_len);
         });
 
         // 1 ms period
