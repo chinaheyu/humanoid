@@ -7,6 +7,7 @@ from std_srvs.srv import SetBool
 from humanoid_interface.msg import ChatResult
 from .azure_speech import AzureSpeechService
 from .iflytek_spark import SparkDesk
+import sqlite3
 
 
 class HumanoidChatNode(Node):
@@ -54,6 +55,15 @@ class HumanoidChatNode(Node):
         else:
             response.success = False
         return response
+
+    def _serach_preset_answer(self, question):
+        preset_db = sqlite3.connect(os.path.join(self._package_path, "preset.db"))
+        cur = preset_db.cursor()
+        res = cur.execute(f"SELECT answer FROM preset WHERE question = '{question}'").fetchone()
+        preset_db.close()
+        if res:
+            return res[0]
+        return None
     
     def _main_loop(self):
         self._azure.text_to_speech('请对我说小智')
@@ -75,31 +85,45 @@ class HumanoidChatNode(Node):
             print()
             if not question:
                 continue
-
-            # Chat and tts
-            self.get_logger().info("Generating response.")
-            prev_response = ""
-            synthesis_ptr = 0
-            for response in self._chat_model.chat_stream(question):
-                # print stream response
-                print(response[len(prev_response):], end='', flush=True)
-                # synthesis
-                if not self._azure.is_speech_synthesising():
-                    sep_ptr = max(response.rfind(i) for i in [",", ";", ".", "?", "，", "；", "。", "？"])
-                    if sep_ptr > synthesis_ptr:
-                        self._azure.text_to_speech(response[synthesis_ptr:sep_ptr])
-                        synthesis_ptr = sep_ptr
-                prev_response = response
-            print()
-            self.chat_result_publisher.publish(
-                ChatResult(
-                    question=question,
-                    answer=prev_response
+            
+            # Search database
+            if (preset_answer := self._serach_preset_answer(question)) is not None:
+                # Using preset answer
+                self.get_logger().info("Found preset answer in database.")
+                print(preset_answer)
+                self.chat_result_publisher.publish(
+                    ChatResult(
+                        question=question,
+                        answer=preset_answer
+                    )
                 )
-            )
-            if prev_response[synthesis_ptr:]:
-                self._azure.text_to_speech(prev_response[synthesis_ptr:])
-            self._azure.wait_speech_synthesising()
+                self._azure.text_to_speech(preset_answer)
+                self._azure.wait_speech_synthesising()
+            else:
+                # Using LLM
+                self.get_logger().info("Generating response from LLM.")
+                prev_response = ""
+                synthesis_ptr = 0
+                for response in self._chat_model.chat_stream(question):
+                    # print stream response
+                    print(response[len(prev_response):], end='', flush=True)
+                    # synthesis
+                    if not self._azure.is_speech_synthesising():
+                        sep_ptr = max(response.rfind(i) for i in [",", ";", ".", "?", "，", "；", "。", "？"])
+                        if sep_ptr > synthesis_ptr:
+                            self._azure.text_to_speech(response[synthesis_ptr:sep_ptr])
+                            synthesis_ptr = sep_ptr
+                    prev_response = response
+                print()
+                self.chat_result_publisher.publish(
+                    ChatResult(
+                        question=question,
+                        answer=prev_response
+                    )
+                )
+                if prev_response[synthesis_ptr:]:
+                    self._azure.text_to_speech(prev_response[synthesis_ptr:])
+                self._azure.wait_speech_synthesising()
 
 
 def main(args=None):

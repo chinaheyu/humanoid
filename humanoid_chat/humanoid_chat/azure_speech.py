@@ -53,7 +53,10 @@ class AzureSpeechService:
     def speech_to_text(self):
         result = self._speech_recognizer.start_continuous_recognition_async()
         while True:
-            response = self._speech_recognize_queue.get()
+            try:
+                response = self._speech_recognize_queue.get(timeout=5.0)
+            except queue.Empty:
+                break
             if response is None:
                 break
             yield response
