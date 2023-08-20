@@ -26,6 +26,7 @@ SerialManager::SerialManager(const USBDeviceInfo& i,
     latency_publisher_ = node_->create_publisher<std_msgs::msg::Float64>(
         "latency/s" + info_.serial_number, 10);
     unpack_stream_obj_ = protocol_create_unpack_stream(1000, true);
+    read_last_time_ = get_timestamp_();
     create_communication_thread_();
 }
 
