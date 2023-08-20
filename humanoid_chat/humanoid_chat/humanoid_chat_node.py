@@ -4,6 +4,7 @@ import rclpy
 import rclpy.qos
 from rclpy.node import Node
 from std_srvs.srv import SetBool
+from std_msgs.msg import String
 from humanoid_interface.msg import ChatResult
 from .azure_speech import AzureSpeechService
 from .iflytek_spark import SparkDesk
@@ -32,25 +33,30 @@ class HumanoidChatNode(Node):
         )
         
         # Chatting state
-        self.chatting = True
-        self.chat_thread = threading.Thread(target=self._main_loop)
-        self.chat_thread.start()
+        self._chatting = True
+        self._chat_thread = threading.Thread(target=self._main_loop)
+        self._chat_thread.start()
         
         # Ros2 interface
-        self.chat_switch_server = self.create_service(SetBool, 'chat_switch', self._chat_switch_callback)
-        self.chat_result_publisher = self.create_publisher(ChatResult, "chat_result", rclpy.qos.QoSPresetProfiles.get_from_short_key("SYSTEM_DEFAULT"))
+        self._chat_switch_server = self.create_service(SetBool, 'chat_switch', self._chat_switch_callback)
+        self._chat_result_publisher = self.create_publisher(ChatResult, "chat_result", rclpy.qos.QoSPresetProfiles.get_from_short_key("SYSTEM_DEFAULT"))
+        self._speak_subscription = self.create_subscription(String, "speak", self._speak_callback, rclpy.qos.QoSPresetProfiles.get_from_short_key("SYSTEM_DEFAULT"))
     
+    def _speak_callback(self, msg: String):
+        self._azure.wait_speech_synthesising()
+        self._azure.text_to_speech(msg.data)
+
     def _chat_switch_callback(self, request: SetBool.Request, response: SetBool.Response):
-        if request.data != self.chatting:
+        if request.data != self._chatting:
             if request.data:
-                self.chatting = True
-                self.chat_thread = threading.Thread(target=self._execute)
-                self.chat_thread.start()
+                self._chatting = True
+                self._chat_thread = threading.Thread(target=self._execute)
+                self._chat_thread.start()
             else:
-                self.chatting = False
+                self._chatting = False
                 self._azure.stop_all()
-                if self.chat_thread is not None:
-                    self.chat_thread.join()
+                if self._chat_thread is not None:
+                    self._chat_thread.join()
             response.success = True
         else:
             response.success = False
@@ -67,7 +73,7 @@ class HumanoidChatNode(Node):
     
     def _main_loop(self):
         self._azure.text_to_speech('请对我说小智')
-        while self.chatting:
+        while self._chatting:
             # Detect keyword
             self.get_logger().info("Recognizing keyword.")
             while not self._azure.recognize_keyword(os.path.join(self._package_path, "xz.table")):
@@ -91,7 +97,7 @@ class HumanoidChatNode(Node):
                 # Using preset answer
                 self.get_logger().info("Found preset answer in database.")
                 print(preset_answer)
-                self.chat_result_publisher.publish(
+                self._chat_result_publisher.publish(
                     ChatResult(
                         question=question,
                         answer=preset_answer
@@ -115,7 +121,7 @@ class HumanoidChatNode(Node):
                             synthesis_ptr = sep_ptr
                     prev_response = response
                 print()
-                self.chat_result_publisher.publish(
+                self._chat_result_publisher.publish(
                     ChatResult(
                         question=question,
                         answer=prev_response
