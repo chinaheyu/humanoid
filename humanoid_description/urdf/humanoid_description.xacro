@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<robot name="arm_gripper" xmlns:xacro="http://wiki.ros.org/xacro">
+
+  <xacro:include filename="$(find humanoid_description)/urdf/humanoid_description.urdf" />
+
+  <link name="base_link" />
+
+  <joint name="base_to_chest" type="fixed">
+      <parent link="base_link" />
+      <child link = "chest_link" />
+      <origin xyz="0 0 1" rpy="-1.5708 0 0" />
+  </joint>
+
+</robot>
