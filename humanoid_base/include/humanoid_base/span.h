@@ -12,9 +12,7 @@ public:
 
     inline ZeroCopyMessage(ZeroCopyMessage &&) = delete;
 
-    inline ZeroCopyMessage(const ZeroCopyMessage &other) {
-        memcpy(_data, other._data, sizeof(MessageType));
-    }
+    inline ZeroCopyMessage(const ZeroCopyMessage &) = delete;
 
     inline const MessageType &get_message() const {
         return *reinterpret_cast<const MessageType *>(_data);
