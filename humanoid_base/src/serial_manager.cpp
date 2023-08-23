@@ -69,8 +69,8 @@ const USBDeviceInfo& SerialManager::get_serial_info() const { return info_; }
 void SerialManager::reset_device_() {
     RCLCPP_WARN_STREAM(node_->get_logger(), "Reset device: " << info_);
     is_open_ = false;
-    send_message_to_device(CMD_RESET);
-    reset();
+    // send_message_to_device(CMD_RESET);
+    // reset();
     wait_to_delete_ = true;
 }
 
