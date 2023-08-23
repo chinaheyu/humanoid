@@ -12,7 +12,7 @@
 #include "humanoid_base/protocol_def.h"
 #include "humanoid_base/serial_manager.h"
 #include "humanoid_base/span.h"
-#include "humanoid_base/visibility_control.h"
+#include "humanoid_interface/visibility_control.h"
 #include "humanoid_interface/msg/face_control.hpp"
 #include "humanoid_interface/msg/head_feedback.hpp"
 #include "humanoid_interface/msg/motor_control.hpp"

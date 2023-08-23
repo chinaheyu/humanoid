@@ -26,6 +26,7 @@ target_include_directories(humanoid_base_component PUBLIC "include")
 target_compile_definitions(humanoid_base_component PRIVATE "COMPOSITION_BUILDING_DLL")
 target_link_libraries(humanoid_base_component -lusb-1.0)
 ament_target_dependencies(humanoid_base_component ${${PROJECT_NAME}_FOUND_BUILD_DEPENDS})
+rclcpp_components_register_nodes(humanoid_base_component "humanoid::HumanoidBaseNode")
 
 # build a composition node
 add_executable(humanoid_base_node "src/composition.cpp")
