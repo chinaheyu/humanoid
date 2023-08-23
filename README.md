@@ -29,6 +29,18 @@ docker run --name humanoid \
 docker run --name humanoid_frontend --restart unless-stopped -p 80:80 -d chinaheyu/humanoid_frontend
 ```
 
+Update the container.
+
+```bash
+# Update once
+docker run --rm --volume /var/run/docker.sock:/var/run/docker.sock -d containrrr/watchtower --run-once --cleanup humanoid humanoid_frontend
+
+# (Optional: Automatic update container)
+docker run --name watchtower \
+--volume /var/run/docker.sock:/var/run/docker.sock \
+-d containrrr/watchtower --cleanup humanoid humanoid_frontend
+```
+
 ## Quick Start (source)
 
 Create a ros2 workspace.

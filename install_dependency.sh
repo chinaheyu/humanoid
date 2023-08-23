@@ -5,6 +5,7 @@ set -e
 SCRIPTPATH=$(readlink -f "$0")
 TOP_DIR=$(dirname "$SCRIPTPATH")
 
+rosdep update --rosdistro=$ROS_DISTRO
 rosdep install --from-paths $TOP_DIR -r -y --ignore-src
 
 install_requirements() {

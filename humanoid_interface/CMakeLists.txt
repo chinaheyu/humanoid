@@ -16,3 +16,8 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 )
 
 ament_package()
+
+install(
+  DIRECTORY include/
+  DESTINATION include/${PROJECT_NAME}
+)

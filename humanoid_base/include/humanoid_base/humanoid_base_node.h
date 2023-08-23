@@ -9,8 +9,10 @@
 #include <string>
 #include <unordered_map>
 
+#include "humanoid_base/protocol_def.h"
 #include "humanoid_base/serial_manager.h"
-#include "humanoid_base/visibility_control.h"
+#include "humanoid_base/span.h"
+#include "humanoid_interface/visibility_control.h"
 #include "humanoid_interface/msg/face_control.hpp"
 #include "humanoid_interface/msg/head_feedback.hpp"
 #include "humanoid_interface/msg/motor_control.hpp"
@@ -46,11 +48,7 @@ private:
         head_feedback_publisher_;
 
     void dispatch_frame_(const std::shared_ptr<const SerialManager>& from,
-                         uint16_t cmd_id,
-                         std::shared_ptr<std::vector<uint8_t>>&& data);
-
-    template <typename T1, typename T2>
-    inline const T1* get_message_(T2 data);
+                         uint16_t cmd_id, const uint8_t* data, size_t len);
 
     void load_parameters_();
 
@@ -59,12 +57,15 @@ private:
 
     void scan_device_();
 
-    void publish_imu_(const std::string& frame_id,
-                      std::shared_ptr<std::vector<uint8_t>>& data);
+    void publish_imu_(
+        const std::string& frame_id,
+        const ZeroCopyMessage<uint8_t, cmd_gyro_feedback_t>& data);
 
-    void publish_head_feedback_(std::shared_ptr<std::vector<uint8_t>>& data);
+    void publish_head_feedback_(
+        const ZeroCopyMessage<uint8_t, cmd_head_feedback_t>& data);
 
-    void publish_motor_feedback_(std::shared_ptr<std::vector<uint8_t>>& data);
+    void publish_motor_feedback_(
+        const ZeroCopyMessage<uint8_t, cmd_motor_feedback_t>& data);
 
     void motor_control_callback_(
         const humanoid_interface::msg::MotorControl::SharedPtr msg);

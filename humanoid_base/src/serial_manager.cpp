@@ -26,6 +26,7 @@ SerialManager::SerialManager(const USBDeviceInfo& i,
     latency_publisher_ = node_->create_publisher<std_msgs::msg::Float64>(
         "latency/s" + info_.serial_number, 10);
     unpack_stream_obj_ = protocol_create_unpack_stream(1000, true);
+    read_last_time_ = get_timestamp_();
     create_communication_thread_();
 }
 
@@ -197,12 +198,10 @@ void SerialManager::communication_thread_() {
 
         // Read and parse stream
         read_and_parse_([this]() {
-            // One time copy
+            // Zero copy
             node_->dispatch_frame_(
                 shared_from_this(), unpack_stream_obj_->cmd_id,
-                std::make_shared<std::vector<uint8_t>>(
-                    unpack_stream_obj_->data,
-                    unpack_stream_obj_->data + unpack_stream_obj_->data_len));
+                unpack_stream_obj_->data, unpack_stream_obj_->data_len);
         });
 
         // 1 ms period
