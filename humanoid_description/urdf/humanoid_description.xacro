@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 
-<robot name="arm_gripper" xmlns:xacro="http://wiki.ros.org/xacro">
+<robot name="humanoid" xmlns:xacro="http://wiki.ros.org/xacro">
 
   <xacro:include filename="$(find humanoid_description)/urdf/humanoid_description.urdf" />
 

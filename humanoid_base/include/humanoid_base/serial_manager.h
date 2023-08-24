@@ -64,7 +64,7 @@ private:
     void sync_time_();
     void reset_device_();
     inline long long get_timestamp_();
-    std::chrono::time_point<std::chrono::steady_clock,
+    std::chrono::time_point<std::chrono::system_clock,
                             std::chrono::microseconds>
     timestamp_to_chrono_(long long timestamp);
     void publish_latency_(double microseconds);
