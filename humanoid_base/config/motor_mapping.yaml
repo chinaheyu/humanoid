@@ -1,17 +1,70 @@
 humanoid_base:
   ros__parameters:
     head: "205D32834D31"
-    motor_1: "2064378F5948"
-    motor_2: "2064378F5948"
-    motor_3: "205732834D31"
-    motor_4: "205732834D31"
-    motor_5: "205732834D31"
-    motor_6: "205732834D31"
-    motor_7: "205732834D31"
-    motor_8: "2064378F5948"
-    motor_9: "206B376B5948"
-    motor_10: "206B376B5948"
-    motor_11: "206B376B5948"
-    motor_12: "206B376B5948"
-    motor_13: "206B376B5948"
-
+    joint_names: ['joint1', 'joint2', 'joint3', 'joint4', 'joint5', 'joint6', 'joint7', 'joint8', 'joint9', 'joint10', 'joint11', 'joint12', 'joint13']
+    motors:
+      motor_1:
+        device: "2064378F5948"
+        reverse: true
+        offset: -0.017
+        mapping: "joint1"
+      motor_2:
+        device: "2064378F5948"
+        reverse: false
+        offset: -0.273
+        mapping: "joint3"
+      motor_3:
+        device: "205732834D31"
+        reverse: false
+        offset: -0.179
+        mapping: "joint2"
+      motor_4:
+        device: "205732834D31"
+        reverse: false
+        offset: 0.0
+        mapping: "joint4"
+      motor_5:
+        device: "205732834D31"
+        reverse: true
+        offset: -0.064
+        mapping: "joint5"
+      motor_6:
+        device: "205732834D31"
+        reverse: true
+        offset: 1.5475
+        mapping: "foot_left_upper"
+      motor_7:
+        device: "205732834D31"
+        reverse: false
+        offset: 1.9135
+        mapping: "foot_left_lower"
+      motor_8:
+        device: "2064378F5948"
+        reverse: false
+        offset: -0.048
+        mapping: "joint9"
+      motor_9:
+        device: "206B376B5948"
+        reverse: false
+        offset: -0.435
+        mapping: "joint8"
+      motor_10:
+        device: "206B376B5948"
+        reverse: true
+        offset: 0.0
+        mapping: "joint10"
+      motor_11:
+        device: "206B376B5948"
+        reverse: false
+        offset: 0.1337
+        mapping: "joint11"
+      motor_12:
+        device: "206B376B5948"
+        reverse: true
+        offset: 0.2095
+        mapping: "foot_right_upper"
+      motor_13:
+        device: "206B376B5948"
+        reverse: false
+        offset: 1.0245
+        mapping: "foot_right_lower"

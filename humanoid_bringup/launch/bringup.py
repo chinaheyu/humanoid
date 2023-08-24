@@ -20,12 +20,12 @@ def generate_launch_description():
             name='humanoid_web',
             respawn=True
         ),
-        Node(
-            package='humanoid_chat',
-            executable='humanoid_chat_node',
-            name='humanoid_chat',
-            respawn=True
-        ),
+        # Node(
+        #     package='humanoid_chat',
+        #     executable='humanoid_chat_node',
+        #     name='humanoid_chat',
+        #     respawn=True
+        # ),
         Node(
             package='humanoid_arm',
             executable='humanoid_arm_node',

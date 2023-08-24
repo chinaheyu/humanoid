@@ -51,13 +51,13 @@ void SerialManager::sync_time_() {
 
 long long SerialManager::get_timestamp_() {
     return std::chrono::duration_cast<std::chrono::microseconds>(
-               std::chrono::steady_clock::now().time_since_epoch())
+               std::chrono::system_clock::now().time_since_epoch())
         .count();
 }
 
-std::chrono::time_point<std::chrono::steady_clock, std::chrono::microseconds>
+std::chrono::time_point<std::chrono::system_clock, std::chrono::microseconds>
 SerialManager::timestamp_to_chrono_(long long timestamp) {
-    return std::chrono::time_point<std::chrono::steady_clock,
+    return std::chrono::time_point<std::chrono::system_clock,
                                    std::chrono::microseconds>(
         std::chrono::microseconds(timestamp));
 }
