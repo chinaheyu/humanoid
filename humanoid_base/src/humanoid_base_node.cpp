@@ -436,12 +436,15 @@ void HumanoidBaseNode::update_parameters_callback_(
 
 void HumanoidBaseNode::publish_joint_state_() {
     // foot kinematics
-    FootKinematics::forward(foot_state_["foot_left_upper"],
-                            foot_state_["foot_left_lower"],
-                            joint_state_["joint7"], joint_state_["joint6"]);
-    FootKinematics::forward(foot_state_["foot_right_upper"],
-                            foot_state_["foot_right_lower"],
-                            joint_state_["joint13"], joint_state_["joint12"]);
+    if (!FootKinematics::forward(
+            foot_state_["foot_left_upper"], foot_state_["foot_left_lower"],
+            joint_state_["joint7"], joint_state_["joint6"]))
+        return;
+
+    if (!FootKinematics::forward(
+            foot_state_["foot_right_upper"], foot_state_["foot_right_lower"],
+            joint_state_["joint13"], joint_state_["joint12"]))
+        return;
 
     sensor_msgs::msg::JointState msg;
     msg.header.stamp = this->now();

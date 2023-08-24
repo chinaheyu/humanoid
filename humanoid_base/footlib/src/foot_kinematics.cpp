@@ -3,7 +3,7 @@
 #include "foot_jacobian_inverse.h"
 #include <cmath>
 
-void humanoid::FootKinematics::forward(double upper_theta, double lower_theta, double &roll, double &pitch, double tolerance, int max_iter) {
+bool humanoid::FootKinematics::forward(double upper_theta, double lower_theta, double &roll, double &pitch, double tolerance, int max_iter) {
     double roll_temp = 0;
     double pitch_temp = 0;
     for (int i = 0; i < max_iter; ++i) {
@@ -30,8 +30,12 @@ void humanoid::FootKinematics::forward(double upper_theta, double lower_theta, d
         roll_temp += delta[0];
         pitch_temp += delta[1];
     }
+    if (roll < -0.5 || roll > 0.5 || pitch < -0.8 || pitch > 0.8) {
+        return false;
+    }
     roll = -roll_temp;
     pitch = pitch_temp;
+    return true;
 }
 
 void humanoid::FootKinematics::backward(double roll, double pitch, double &upper_theta, double &lower_theta) {

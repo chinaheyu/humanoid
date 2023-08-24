@@ -26,7 +26,7 @@ humanoid_base:
       motor_5:
         device: "205732834D31"
         reverse: true
-        offset: -0.064
+        offset: 0.138
         mapping: "joint5"
       motor_6:
         device: "205732834D31"
@@ -51,12 +51,12 @@ humanoid_base:
       motor_10:
         device: "206B376B5948"
         reverse: true
-        offset: 0.0
+        offset: 0.348
         mapping: "joint10"
       motor_11:
         device: "206B376B5948"
         reverse: false
-        offset: 0.1337
+        offset: 0.3157
         mapping: "joint11"
       motor_12:
         device: "206B376B5948"
