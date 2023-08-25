@@ -31,7 +31,7 @@ bool humanoid::FootKinematics::forward(double upper_theta, double lower_theta, d
         roll_temp += delta[0];
         pitch_temp += delta[1];
     }
-    if (roll < -0.5 || roll > 0.5 || pitch < -0.8 || pitch > 0.8) {
+    if (roll < -1.0 || roll > 1.0 || pitch < -1.57 || pitch > 1.57) {
         return false;
     }
     roll = -roll_temp;

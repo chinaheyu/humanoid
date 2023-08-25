@@ -55,7 +55,7 @@ def generate_launch_description():
                 '/rosbridge_websocket_launch.xml'
             ]),
             launch_arguments={
-                'port': '8080'
+                'port': '5001'
             }.items()
         ),
     ])
