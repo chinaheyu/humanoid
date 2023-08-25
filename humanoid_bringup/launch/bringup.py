@@ -21,11 +21,11 @@ def generate_launch_description():
             executable='humanoid_web_node',
             name='humanoid_web'
         ),
-        # Node(
-        #     package='humanoid_chat',
-        #     executable='humanoid_chat_node',
-        #     name='humanoid_chat'
-        # ),
+        Node(
+            package='humanoid_chat',
+            executable='humanoid_chat_node',
+            name='humanoid_chat'
+        ),
         Node(
             package='humanoid_arm',
             executable='humanoid_arm_node',
