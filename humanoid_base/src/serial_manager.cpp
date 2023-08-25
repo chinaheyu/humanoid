@@ -40,9 +40,6 @@ SerialManager::~SerialManager() {
 
 void SerialManager::sync_time_() {
     long long current_time = get_timestamp_();
-    RCLCPP_DEBUG_STREAM(
-        node_->get_logger(),
-        "Sync device time (timestamp = " << current_time << " us): " << info_);
     cmd_sync_t msg;
     msg.timestamp = current_time;
     send_message_to_device(CMD_SYNC, msg);
@@ -165,8 +162,8 @@ void SerialManager::read_and_parse_(std::function<void(void)> callback) {
     // Unpack data frame
     for (long long i = 0; i < ret; ++i) {
         if (protocol_unpack_byte(unpack_stream_obj_, read_buffer_[i])) {
-            publish_latency_(get_timestamp_() - (*reinterpret_cast<long long*>(
-                                                    unpack_stream_obj_->data)));
+            publish_latency_(read_last_time_ - (*reinterpret_cast<long long*>(
+                                                   unpack_stream_obj_->data)));
             callback();
         }
     }
