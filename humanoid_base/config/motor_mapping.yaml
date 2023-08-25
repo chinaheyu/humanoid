@@ -44,27 +44,27 @@ humanoid_base:
         offset: -0.048
         mapping: "joint9"
       motor_9:
-        device: "206B376B5948"
+        device: "206F32844D31"
         reverse: false
         offset: -0.435
         mapping: "joint8"
       motor_10:
-        device: "206B376B5948"
+        device: "206F32844D31"
         reverse: true
         offset: 0.348
         mapping: "joint10"
       motor_11:
-        device: "206B376B5948"
+        device: "206F32844D31"
         reverse: false
         offset: 0.3157
         mapping: "joint11"
       motor_12:
-        device: "206B376B5948"
+        device: "206F32844D31"
         reverse: true
         offset: 0.2095
         mapping: "foot_right_upper"
       motor_13:
-        device: "206B376B5948"
+        device: "206F32844D31"
         reverse: false
         offset: 1.0245
         mapping: "foot_right_lower"
