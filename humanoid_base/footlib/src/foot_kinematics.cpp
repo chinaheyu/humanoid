@@ -14,7 +14,6 @@ bool humanoid::FootKinematics::forward(double upper_theta, double lower_theta, d
         double total_err;
 
         foot_forward(roll_temp, pitch_temp, yhat);
-        foot_jacobian_inverse(roll_temp, pitch_temp, invJ);
 
         err[0] = upper_theta - yhat[0];
         err[1] = lower_theta - yhat[1];
@@ -23,6 +22,8 @@ bool humanoid::FootKinematics::forward(double upper_theta, double lower_theta, d
         if (total_err < tolerance)
             break;
 
+        foot_jacobian_inverse(roll_temp, pitch_temp, invJ);
+
         for (int j = 0; j < 2; ++j) {
             delta[j] = invJ[j] * err[0] + invJ[j + 2] * err[1];
         }
@@ -30,7 +31,7 @@ bool humanoid::FootKinematics::forward(double upper_theta, double lower_theta, d
         roll_temp += delta[0];
         pitch_temp += delta[1];
     }
-    if (roll < -0.5 || roll > 0.5 || pitch < -0.8 || pitch > 0.8) {
+    if (roll < -1.0 || roll > 1.0 || pitch < -1.57 || pitch > 1.57) {
         return false;
     }
     roll = -roll_temp;

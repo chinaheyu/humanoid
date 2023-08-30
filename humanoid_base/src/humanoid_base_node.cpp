@@ -26,7 +26,7 @@ HumanoidBaseNode::HumanoidBaseNode(const rclcpp::NodeOptions& options)
 
     // Create ros publisher and subscription
     imu_publisher_ = this->create_publisher<sensor_msgs::msg::Imu>(
-        "imu", rclcpp::SensorDataQoS());
+        "imu/raw", rclcpp::SensorDataQoS());
     motor_feedback_publisher_ =
         this->create_publisher<humanoid_interface::msg::MotorFeedback>(
             "motor_feedback", rclcpp::SensorDataQoS());
