@@ -3,7 +3,7 @@
     "image": "ros:foxy",
     "workspaceMount": "source=${localWorkspaceFolder},target=/workspace/src,type=bind",
     "workspaceFolder": "/workspace",
-    "postCreateCommand": "bash src/install_dependency.sh",
+    "postCreateCommand": "cp -r /workspace/src/.vscode /workspace && bash src/install_dependency.sh",
     "customizations": {
 		"vscode": {
 			"settings": {
