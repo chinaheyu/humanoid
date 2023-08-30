@@ -5,20 +5,10 @@
     "tasks": [
         {
             "label": "colcon: build",
-            "type": "colcon",
-            "args": [
-                "build",
-                "--symlink-install",
-                "--event-handlers",
-                "console_cohesion+",
-                "--base-paths",
-                "${workspaceFolder}",
-                "--cmake-args",
-                "-DCMAKE_BUILD_TYPE=RelWithDebInfo",
-                "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
-            ],
+            "type": "shell",
+            "command": "source /opt/ros/$ROS_DISTRO/setup.sh && colcon build --symlink-install --base-paths ${workspaceFolder} --cmake-args -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
             "problemMatcher": [
-                "$catkin-gcc"
+                "$gcc"
             ],
             "group": "build"
         },
