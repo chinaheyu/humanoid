@@ -1,5 +1,5 @@
 [Unit]
-After=network-online.target sound.target
+After=network-online.target
 Description="Humanoid launch"
 
 [Service]
