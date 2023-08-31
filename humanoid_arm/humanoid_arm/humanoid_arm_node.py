@@ -19,7 +19,7 @@ class HumanoidArmNode(Node):
     def __init__(self):
         super().__init__('humanoid_arm')
         self._motors = {}
-        for i in range(14, 15):
+        for i in range(14, 23):
             self._motors[i] = MotorDataClass(id=i, controller=moteus.Controller(id=i))
         
         self._motor_feedback_publisher = self.create_publisher(MotorFeedback, "motor_feedback", rclpy.qos.QoSPresetProfiles.get_from_short_key("SENSOR_DATA"))
@@ -28,14 +28,35 @@ class HumanoidArmNode(Node):
         self._control_thread = threading.Thread(target=asyncio.run, args=[self._control_loop()])
         self._control_thread.start()
     
+    async def _detect_motor(self, motor: MotorDataClass):
+        s = moteus.Stream(motor.controller)
+        try:
+            response = await asyncio.wait_for(s.command(b'conf get id.id', allow_any_response=True), 0.1)
+            if int(response.decode('utf-8')) == motor.id:
+                return True
+        except (TimeoutError, ValueError):
+            pass
+        return False
+
     def _motor_control_callback(self, msg: MotorControl):
         if msg.id in self._motors and msg.control_type == MotorControl.MOTOR_POSITION_CONTROL:
             self._motors[msg.id].target_position = msg.position
 
     async def _control_loop(self):
+        # Wait motors online
+        while rclpy.ok():
+            for m in self._motors.values():
+                if not await self._detect_motor(m):
+                    self.get_logger().error(f'Motor {m.id} not found.')
+                    break
+            else:
+                break
+            asyncio.sleep(1)
+
+        # Enter control loop
         transport = moteus.Fdcanusb()
         await transport.cycle([c.controller.make_stop() for c in self._motors.values()])
-        while True:
+        while rclpy.ok():
             states = await transport.cycle([c.controller.make_position(position=c.target_position, query=True) for c in self._motors.values()])
             for state in states:
                 self._motor_feedback_publisher.publish(

@@ -22,7 +22,9 @@ class HumanoidChatNode(Node):
         # initialize azure speech service
         self._azure = AzureSpeechService(
             os.environ.get('AZURE_SPEECH_KEY'),
-            os.environ.get('AZURE_SPEECH_REGION')
+            os.environ.get('AZURE_SPEECH_REGION'),
+            microphone_device="sysdefault:CARD=DELI14870",
+            speaker_device="sysdefault:CARD=DELI14870"
         )
         
         # initialize chat model
@@ -43,8 +45,8 @@ class HumanoidChatNode(Node):
         self._speak_subscription = self.create_subscription(String, "speak", self._speak_callback, rclpy.qos.QoSPresetProfiles.get_from_short_key("SYSTEM_DEFAULT"))
     
     def _speak_callback(self, msg: String):
-        self._azure.wait_speech_synthesising()
-        self._azure.text_to_speech(msg.data)
+        if not self._azure.is_speech_synthesising():
+            self._azure.text_to_speech(msg.data)
 
     def _chat_switch_callback(self, request: SetBool.Request, response: SetBool.Response):
         if request.data != self._chatting:
