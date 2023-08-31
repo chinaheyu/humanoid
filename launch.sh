@@ -11,7 +11,7 @@ find_workspace_directory() {
     local current_dir=$(readlink -f "$0")
 
     while [[ "$current_dir" != "/" ]]; do
-        if [[ -d "$current_dir/install" ]]; then
+        if [[ -e "$current_dir/install/setup.bash" ]]; then
             echo "$current_dir"
             return 0
         fi
