@@ -36,6 +36,8 @@ wait_for_path() {
 wait_all_device_online() {
     wait_for_path "/dev/input/by-id/usb-DELI_DELI-14870_20080411-event-if03" 1
     wait_for_path "/dev/snd/by-id/usb-DELI_DELI-14870_20080411-00" 1
+    wait_for_path "/proc/asound/DELI14870" 1
+
     wait_for_path "/dev/serial/by-id/usb-mjbots_fdcanusb_FFD4048A-if00" 1
 
     wait_for_path "/dev/serial/by-id/usb-scut_humanoid_205D32834D31-if00" 1
