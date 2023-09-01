@@ -34,7 +34,6 @@ private:
             uint8_t id;
             bool reverse;
             double offset;
-            std::string mapping;
         };
         std::unordered_map<uint8_t, Motor> motors;
         std::string head_device;
@@ -42,7 +41,6 @@ private:
     std::mutex serials_container_mutex_;
     std::unordered_map<std::string, std::shared_ptr<SerialManager>> serials_;
     rclcpp::TimerBase::ConstSharedPtr scan_device_timer_;
-    rclcpp::TimerBase::ConstSharedPtr publish_joint_state_timer_;
     rclcpp::AsyncParametersClient::SharedPtr parameters_client_;
     rclcpp::Subscription<rcl_interfaces::msg::ParameterEvent>::SharedPtr
         parameter_event_sub_;
@@ -51,16 +49,12 @@ private:
         motor_control_subscription_;
     rclcpp::Publisher<humanoid_interface::msg::MotorFeedback>::SharedPtr
         motor_feedback_publisher_;
-    rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr
-        joint_state_publisher_;
     rclcpp::Subscription<humanoid_interface::msg::FaceControl>::SharedPtr
         face_control_subscription_;
     rclcpp::Subscription<humanoid_interface::msg::NeckControl>::SharedPtr
         neck_control_subscription_;
     rclcpp::Publisher<humanoid_interface::msg::HeadFeedback>::SharedPtr
         head_feedback_publisher_;
-    std::unordered_map<std::string, double> joint_state_;
-    std::unordered_map<std::string, double> foot_state_;
 
     void dispatch_frame_(const std::shared_ptr<const SerialManager>& from,
                          uint16_t cmd_id, const uint8_t* data, size_t len);
@@ -74,8 +68,6 @@ private:
         const rcl_interfaces::msg::ParameterEvent::SharedPtr msg);
 
     void scan_device_();
-
-    void publish_joint_state_();
 
     void publish_imu_(
         const std::string& frame_id,

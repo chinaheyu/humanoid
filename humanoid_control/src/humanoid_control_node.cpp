@@ -3,7 +3,7 @@
 namespace humanoid {
 
 HumanoidControlNode::HumanoidControlNode(const rclcpp::NodeOptions& options)
-    : rclcpp::Node("humanoid_base", options) {}
+    : rclcpp::Node("humanoid_base", options), state_estimator_(this) {}
 
 }  // namespace humanoid
 

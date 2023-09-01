@@ -18,12 +18,15 @@ endif()
 find_package(ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies()
 
+add_subdirectory("footlib")
+
 # build component
 aux_source_directory("src" component_srcs)
 list(REMOVE_ITEM component_srcs "src/composition.cpp")
 add_library(humanoid_control_component SHARED ${component_srcs})
 target_include_directories(humanoid_control_component PUBLIC "include")
 target_compile_definitions(humanoid_control_component PRIVATE "COMPOSITION_BUILDING_DLL")
+target_link_libraries(humanoid_control_component footlib)
 ament_target_dependencies(humanoid_control_component ${${PROJECT_NAME}_FOUND_BUILD_DEPENDS})
 rclcpp_components_register_nodes(humanoid_control_component "humanoid::HumanoidControlNode")
 
