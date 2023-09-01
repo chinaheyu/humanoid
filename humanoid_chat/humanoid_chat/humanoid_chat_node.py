@@ -4,7 +4,7 @@ import rclpy
 import rclpy.qos
 from rclpy.node import Node
 from std_srvs.srv import SetBool
-from std_msgs.msg import String
+from humanoid_interface.srv import Speak
 from humanoid_interface.msg import ChatResult
 from .azure_speech import AzureSpeechService
 from .iflytek_spark import SparkDesk
@@ -40,11 +40,16 @@ class HumanoidChatNode(Node):
         # Ros2 interface
         self._chat_switch_server = self.create_service(SetBool, 'chat_switch', self._chat_switch_callback)
         self._chat_result_publisher = self.create_publisher(ChatResult, "chat_result", rclpy.qos.QoSPresetProfiles.get_from_short_key("SYSTEM_DEFAULT"))
-        self._speak_subscription = self.create_subscription(String, "speak", self._speak_callback, rclpy.qos.QoSPresetProfiles.get_from_short_key("SYSTEM_DEFAULT"))
+        self._speak_service = self.create_service(Speak, "speak", self._speak_callback)
     
-    def _speak_callback(self, msg: String):
-        self._azure.wait_speech_synthesising()
-        self._azure.text_to_speech(msg.data)
+    def _speak_callback(self, request: Speak.Request, response: Speak.Response):
+        if self._azure.is_speech_synthesising():
+            response.result = False
+        else:
+            self._azure.text_to_speech(request.msg)
+            self._azure.wait_speech_synthesising()
+            response.result = True
+        return response
 
     def _chat_switch_callback(self, request: SetBool.Request, response: SetBool.Response):
         if request.data != self._chatting:

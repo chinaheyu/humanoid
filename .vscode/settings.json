@@ -1,0 +1,10 @@
+{
+    "python.analysis.extraPaths": [
+        "/opt/ros/foxy/lib/python3.8/site-packages",
+        "${workspaceFolder}/install/humanoid_interface/lib/python3.8/site-packages"
+    ],
+    "python.autoComplete.extraPaths": [
+        "/opt/ros/foxy/lib/python3.8/site-packages",
+        "${workspaceFolder}/install/humanoid_interface/lib/python3.8/site-packages"
+    ]
+}
