@@ -1,4 +1,6 @@
 from setuptools import setup
+from glob import glob
+import os
 
 package_name = 'humanoid_arm'
 
@@ -10,6 +12,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        (os.path.join('share', package_name, 'frames'), glob(os.path.join('frames', '*.json')))
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -20,7 +23,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'humanoid_arm_node = humanoid_arm.humanoid_arm_node:main'
+            'humanoid_arm_node = humanoid_arm.humanoid_arm_node:main',
+            'teach = humanoid_arm.teach:main',
         ],
     },
 )

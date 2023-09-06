@@ -16,7 +16,7 @@
             "label": "colcon: clean",
             "type": "shell",
             "command": "rm",
-            "args": ["-rf", "${workspaceFolder}/build", "${workspaceFolder}/log", "${workspaceFolder}/install"]
+            "args": ["-rf", "${workspaceFolder}/build/*", "${workspaceFolder}/log/*", "${workspaceFolder}/install/*"]
         }
     ]
 }
