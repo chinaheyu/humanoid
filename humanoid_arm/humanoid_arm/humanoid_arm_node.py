@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import threading
 import asyncio
 from humanoid_interface.msg import MotorControl, MotorFeedback
+from typing import Dict
 
 
 @dataclass
@@ -18,7 +19,7 @@ class MotorDataClass:
 class HumanoidArmNode(Node):
     def __init__(self):
         super().__init__('humanoid_arm')
-        self._motors = {}
+        self._motors: Dict[int, MotorDataClass] = {}
         for i in range(14, 23):
             self._motors[i] = MotorDataClass(id=i, controller=moteus.Controller(id=i))
         
@@ -28,7 +29,7 @@ class HumanoidArmNode(Node):
         self._control_thread = threading.Thread(target=asyncio.run, args=[self._control_loop()])
         self._control_thread.start()
     
-    async def _detect_motor(self, motor: MotorDataClass):
+    async def _detect_motor(self, motor: MotorDataClass) -> bool:
         s = moteus.Stream(motor.controller)
         try:
             response = await asyncio.wait_for(s.command(b'conf get id.id', allow_any_response=True), 0.1)
@@ -38,11 +39,11 @@ class HumanoidArmNode(Node):
             pass
         return False
 
-    def _motor_control_callback(self, msg: MotorControl):
+    def _motor_control_callback(self, msg: MotorControl) -> None:
         if msg.id in self._motors and msg.control_type == MotorControl.MOTOR_POSITION_CONTROL:
             self._motors[msg.id].target_position = msg.position
 
-    async def _control_loop(self):
+    async def _control_loop(self) -> None:
         # Wait motors online
         while rclpy.ok():
             for m in self._motors.values():
