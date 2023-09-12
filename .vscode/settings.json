@@ -1,7 +1,6 @@
 {
     "C_Cpp.intelliSenseEngine": "disabled",
     "clangd.onConfigChanged": "restart",
-    "clangd.path": "clangd",
     "C_Cpp.clang_format_fallbackStyle": "Google",
     "clangd.arguments": [
         "-header-insertion=never"

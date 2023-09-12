@@ -11,6 +11,7 @@
   <buildtool_depend>ament_cmake_auto</buildtool_depend>
 
   <depend>humanoid_interface</depend>
+  <depend>sensor_msgs</depend>
   <depend>rclcpp_components</depend>
 
   <buildtool_depend>eigen3_cmake_module</buildtool_depend>
