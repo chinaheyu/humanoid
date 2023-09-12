@@ -24,16 +24,6 @@
     ],
     "customizations": {
 		"vscode": {
-			"settings": {
-                "C_Cpp.intelliSenseEngine": "disabled",
-                "clangd.onConfigChanged": "restart",
-                "clangd.path": "clangd",
-                "C_Cpp.clang_format_fallbackStyle": "Google",
-                "clangd.arguments": [
-                    "-header-insertion=never"
-                ],
-                "files.eol": "\n"
-            },
 			"extensions": [
                 "ms-iot.vscode-ros",
                 "llvm-vs-code-extensions.vscode-clangd",
