@@ -1,0 +1,33 @@
+humanoid_arm:
+  ros__parameters:
+    motors:
+      motor_14:
+        reverse: false
+        offset: 0.0
+      motor_15:
+        reverse: false
+        offset: 0.0
+      motor_16:
+        reverse: false
+        offset: 0.0
+      motor_17:
+        reverse: false
+        offset: 0.0
+      motor_18:
+        reverse: false
+        offset: 0.0
+      motor_19:
+        reverse: false
+        offset: 0.0
+      motor_20:
+        reverse: false
+        offset: 0.0
+      motor_21:
+        reverse: false
+        offset: 0.0
+      motor_22:
+        reverse: false
+        offset: 0.0
+      motor_23:
+        reverse: false
+        offset: 0.0
