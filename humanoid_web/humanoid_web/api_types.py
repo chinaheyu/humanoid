@@ -187,3 +187,17 @@ class ApiPlayArmRequest(BaseModel):
             ]
         }
     }
+
+
+class ApiGetArmFramesResponse(BaseModel):
+    frames: List[str]
+    
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "frames": ["home", "frame1", "frame2"]
+                }
+            ]
+        }
+    }

@@ -9,7 +9,7 @@ import threading
 import asyncio
 from humanoid_interface.msg import MotorControl, MotorFeedback
 from typing import Dict, List
-from humanoid_interface.srv import PlayArm
+from humanoid_interface.srv import PlayArm, GetArmFrameList
 from ament_index_python.packages import get_package_share_directory
 import os
 from .joint_trajectory_planner import FifthOrderTrajectory
@@ -34,6 +34,7 @@ class HumanoidArmNode(Node):
         
         self._frames_data_path = os.path.join(get_package_share_directory('humanoid_arm'), 'frames')
         self._play_service = self.create_service(PlayArm, "arm/play", self._play_callback)
+        self._get_frame_list_service = self.create_service(GetArmFrameList, "arm/get_frame_list", self._get_frame_list_callback)
         
         self._motors: Dict[int, MotorDataClass] = {}
         for i in range(14, 24):
@@ -69,6 +70,13 @@ class HumanoidArmNode(Node):
                     if param.name.endswith('reverse'):
                         self._motors[motor_id].reverse = param.value
         return SetParametersResult(successful=True)
+    
+    def _get_frame_list_callback(self, request: GetArmFrameList.Request, response: GetArmFrameList.Response) -> GetArmFrameList.Response:
+        response.frames = []
+        for f in os.listdir(self._frames_data_path):
+            if f.endswith('.json'):
+                response.frames.append(f[:-5])
+        return response
     
     def _play_callback(self, request: PlayArm.Request, response: PlayArm.Response) -> PlayArm.Response:
         try:

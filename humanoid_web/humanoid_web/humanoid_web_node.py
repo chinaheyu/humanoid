@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, List
 import rclpy
 import rclpy.qos
 from rclpy.node import Node
@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from .api_types import *
 from humanoid_interface.msg import MotorControl, MotorFeedback, FaceControl, NeckControl, HeadFeedback
-from humanoid_interface.srv import PlayArm
+from humanoid_interface.srv import PlayArm, GetArmFrameList
 
 class HumanoidWebNode(Node):
     face_components = [
@@ -47,6 +47,7 @@ class HumanoidWebNode(Node):
         
         # Create ros service client
         self._play_arm_client = self.create_client(PlayArm, "arm/play")
+        self._get_frame_list_client = self.create_client(GetArmFrameList, "arm/get_frame_list")
     
     def _motor_feedback_callback(self, msg: MotorFeedback) -> None:
         self.motor_feedback[msg.id] = msg
@@ -69,12 +70,15 @@ class HumanoidWebNode(Node):
         request.duration = duration
         if not self._play_arm_client.wait_for_service(timeout_sec=1.0):
             return False
-        future = self._play_arm_client.call_async(request)
-        rclpy.spin_until_future_complete(self, future)
-        if future.result() is None:
-            return False
-        else:
-            return future.result().result
+        response = self._play_arm_client.call(request)
+        return response.result
+    
+    def get_arm_frame_list(self) -> List[str]:
+        request = GetArmFrameList.Request()
+        if not self._get_frame_list_client.wait_for_service(timeout_sec=1.0):
+            return []
+        response = self._get_frame_list_client.call(request)
+        return response.frames
 
 
 humanoid_web_node = None
@@ -175,6 +179,12 @@ def arm_play_to_frame(command: ApiPlayArmRequest):
         return {"message": "Success"}
     else:
         raise HTTPException(status_code=404, detail="Frame not found")
+
+
+@app.get("/arm/frames")
+def get_arm_frames() -> ApiGetArmFramesResponse:
+    response = ApiGetArmFramesResponse(frames=humanoid_web_node.get_arm_frame_list())
+    return response
 
 
 def main(args=None):
