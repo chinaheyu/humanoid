@@ -22,8 +22,8 @@ import time
 class MotorDataClass:
     id: int
     controller: moteus.Controller
-    target: np.ndarray = np.zeros(3)
-    feedback: np.ndarray = np.zeros(3)
+    target: np.ndarray
+    feedback: np.ndarray
     reverse: bool = False
     offset: float = 0.0
 
@@ -36,8 +36,8 @@ class HumanoidArmNode(Node):
         self._play_service = self.create_service(PlayArm, "arm/play", self._play_callback)
         
         self._motors: Dict[int, MotorDataClass] = {}
-        for i in range(14, 23):
-            self._motors[i] = MotorDataClass(id=i, controller=moteus.Controller(id=i))
+        for i in range(14, 24):
+            self._motors[i] = MotorDataClass(id=i, controller=moteus.Controller(id=i), target=np.zeros(3), feedback=np.zeros(3))
         
         self.add_on_set_parameters_callback(self._parameter_callback)
         self._load_parameter()
@@ -77,18 +77,18 @@ class HumanoidArmNode(Node):
         except RuntimeError:
             response.result = False
             return response
-        motor_id = self._motors.keys()
+        motor_id = list(self._motors.keys())
         traj = FifthOrderTrajectory(
             np.column_stack([self._motors[i].feedback for i in motor_id]),
-            np.array(
-                [frame_dict[i] for i in motor_id],
-                np.zeros(2, len(motor_id))
-            ),
+            np.vstack([
+                [frame_dict[str(i)] for i in motor_id],
+                np.zeros((2, len(motor_id)))
+            ]),
             request.duration
         )
         st = time.time()
-        while (t := time.time()) < request.duration:
-            p = traj.plan(t - st)
+        while (t := (time.time() - st)) < request.duration:
+            p = traj.plan(t)
             for i in range(len(motor_id)):
                 self._motors[motor_id[i]].target = p[:, i]
             time.sleep(0.02)
@@ -101,7 +101,7 @@ class HumanoidArmNode(Node):
             response = await asyncio.wait_for(s.command(b'conf get id.id', allow_any_response=True), 0.1)
             if int(response.decode('utf-8')) == motor.id:
                 return True
-        except (TimeoutError, ValueError):
+        except (asyncio.exceptions.TimeoutError, ValueError):
             pass
         return False
 
@@ -124,45 +124,51 @@ class HumanoidArmNode(Node):
         transport = moteus.Fdcanusb()
         await transport.cycle([c.controller.make_stop() for c in self._motors.values()])
         while rclpy.ok():
-            # control motors
-            states = await transport.cycle([
+            try:
+                # Send command
+                states = await asyncio.wait_for(transport.cycle([
                     c.controller.make_position(
-                        position=(-c.target[0] if c.reverse else c.target[0]) + c.offset,
-                        velocity=c.target[1],
+                        position=((-c.target[0] if c.reverse else c.target[0]) + c.offset) / (2 * np.pi),
+                        velocity=c.target[1] / (2 * np.pi),
+                        maximum_torque=4.0,
                         query=True
                     )
                     for c in self._motors.values()
-                ]
-            )
-            
-            for state in states:
-                # mapping motor position
-                position = state.values[moteus.Register.POSITION] - self._motors[state.id].offset
-                if self._motors[state.id].reverse:
-                    position = -position
-                
-                # normizing position to [-pi, pi]
-                position = position % (2 * np.pi)
-                if position > np.pi:
-                    position -= 2 * np.pi
-                if position < -np.pi:
-                    position += 2 * np.pi
-                
-                # update feedback
-                self._motors[state.id].feedback[0] = position
-                self._motors[state.id].feedback[1] = state.values[moteus.Register.VELOCITY]
-                
-                # publish feedback
-                self._motor_feedback_publisher.publish(
-                    MotorFeedback(
-                        stamp=self.get_clock().now().to_msg(),
-                        id=state.id,
-                        position=position,
-                        velocity=state.values[moteus.Register.VELOCITY],
-                        torque=state.values[moteus.Register.TORQUE]
+                ]), 0.1)
+            except asyncio.exceptions.TimeoutError:
+                self.get_logger().error('Moteus send command timeout.')
+            else:
+                for state in states:
+                    # mapping motor position
+                    position = state.values[moteus.Register.POSITION] * 2 * np.pi - self._motors[state.id].offset
+                    if self._motors[state.id].reverse:
+                        position = -position
+                    
+                    # update feedback
+                    self._motors[state.id].feedback[0] = position
+                    self._motors[state.id].feedback[1] = state.values[moteus.Register.VELOCITY] * 2 * np.pi
+                    
+                    # publish feedback
+                    self._motor_feedback_publisher.publish(
+                        MotorFeedback(
+                            stamp=self.get_clock().now().to_msg(),
+                            id=state.id,
+                            position=self._motors[state.id].feedback[0],
+                            velocity=self._motors[state.id].feedback[1],
+                            torque=state.values[moteus.Register.TORQUE]
+                        )
                     )
-                )
+
+            # wait for 20ms
             await asyncio.sleep(0.02)
+
+        # Stop motors
+        states = transport.cycle([
+            c.controller.make_stop(
+                query=True
+            )
+            for c in self._motors.values()
+        ])
 
 
 def main(args=None):

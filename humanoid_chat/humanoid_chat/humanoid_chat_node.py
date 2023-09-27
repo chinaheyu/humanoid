@@ -124,7 +124,7 @@ class HumanoidChatNode(Node):
                     if not self._azure.is_speech_synthesising():
                         sep_ptr = max(response.rfind(i) for i in [",", ";", ".", "?", "，", "；", "。", "？"])
                         if sep_ptr > synthesis_ptr:
-                            self._azure.text_to_speech(response[synthesis_ptr:sep_ptr])
+                            self._azure.text_to_speech(response[synthesis_ptr:sep_ptr].replace('科大讯飞', '华南理工大学张智军教授').replace('讯飞星火认知大模型', '类人机器人'))
                             synthesis_ptr = sep_ptr
                     prev_response = response
                 print()
@@ -135,7 +135,7 @@ class HumanoidChatNode(Node):
                     )
                 )
                 if prev_response[synthesis_ptr:]:
-                    self._azure.text_to_speech(prev_response[synthesis_ptr:])
+                    self._azure.text_to_speech(prev_response[synthesis_ptr:].replace('科大讯飞', '华南理工大学张智军教授').replace('讯飞星火认知大模型', '类人机器人'))
                 self._azure.wait_speech_synthesising()
 
 

@@ -119,7 +119,12 @@ class SparkDesk:
     def chat_stream(self, question):
         threading.Thread(target=self.chat, args=[question]).start()
         while True:
-            response = self._response_queue.get()
+            try:
+                response = self._response_queue.get(timeout=5.0)
+            except queue.Empty:
+                self._chat_history.clear()
+                yield "非常抱歉，我还无法回答您的问题。"
+                break
             if response is None:
                 break
             yield response

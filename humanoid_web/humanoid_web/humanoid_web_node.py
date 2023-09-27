@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from .api_types import *
 from humanoid_interface.msg import MotorControl, MotorFeedback, FaceControl, NeckControl, HeadFeedback
-
+from humanoid_interface.srv import PlayArm
 
 class HumanoidWebNode(Node):
     face_components = [
@@ -44,6 +44,9 @@ class HumanoidWebNode(Node):
         self._motor_control_publisher = self.create_publisher(MotorControl, "motor_control", rclpy.qos.QoSPresetProfiles.get_from_short_key("SYSTEM_DEFAULT"))
         self._face_control_publisher = self.create_publisher(FaceControl, "face_control", rclpy.qos.QoSPresetProfiles.get_from_short_key("SYSTEM_DEFAULT"))
         self._neck_control_publisher = self.create_publisher(NeckControl, "neck_control", rclpy.qos.QoSPresetProfiles.get_from_short_key("SYSTEM_DEFAULT"))
+        
+        # Create ros service client
+        self._play_arm_client = self.create_client(PlayArm, "arm/play")
     
     def _motor_feedback_callback(self, msg: MotorFeedback) -> None:
         self.motor_feedback[msg.id] = msg
@@ -59,6 +62,19 @@ class HumanoidWebNode(Node):
     
     def control_neck(self, msg: NeckControl):
         self._neck_control_publisher.publish(msg)
+    
+    def play_arm(self, frame_name: str, duration: float) -> bool:
+        request = PlayArm.Request()
+        request.frame_name = frame_name
+        request.duration = duration
+        if not self._play_arm_client.wait_for_service(timeout_sec=1.0):
+            return False
+        future = self._play_arm_client.call_async(request)
+        rclpy.spin_until_future_complete(self, future)
+        if future.result() is None:
+            return False
+        else:
+            return future.result().result
 
 
 humanoid_web_node = None
@@ -79,7 +95,7 @@ def list_motors() -> ApiListMotorResponse:
         for motor_feedback in humanoid_web_node.motor_feedback.values():
             response.motors.append(
                 ApiMotorFeedbackResponse(
-                    timestamp=Time.from_msg(motor_feedback.stamp).nanoseconds / 1000,
+                    timestamp=round(Time.from_msg(motor_feedback.stamp).nanoseconds / 1000),
                     id=motor_feedback.id,
                     position=motor_feedback.position,
                     velocity=motor_feedback.velocity,
@@ -95,7 +111,7 @@ def get_motor_feedback(id: int) -> ApiMotorFeedbackResponse:
     if motor_feedback is None:
         raise HTTPException(status_code=404, detail="Motor not found")
     response = ApiMotorFeedbackResponse(
-        timestamp=Time.from_msg(motor_feedback.stamp).nanoseconds / 1000,
+        timestamp=round(Time.from_msg(motor_feedback.stamp).nanoseconds / 1000),
         id=motor_feedback.id,
         position=motor_feedback.position,
         velocity=motor_feedback.velocity,
@@ -150,6 +166,15 @@ def get_head_feedback() -> ApiHeadFeedbackResponse:
     response.neck.pitch_velocity = humanoid_web_node.head_feedback.pitch_velocity
     response.neck.yaw_angle = humanoid_web_node.head_feedback.yaw_angle
     return response
+
+
+@app.put("/arm/play")
+def arm_play_to_frame(command: ApiPlayArmRequest):
+    result = humanoid_web_node.play_arm(command.frame_name, command.duration)
+    if result:
+        return {"message": "Success"}
+    else:
+        raise HTTPException(status_code=404, detail="Frame not found")
 
 
 def main(args=None):

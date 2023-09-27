@@ -42,31 +42,24 @@ class ArmTeachNode(HumanoidArmNode):
         await transport.cycle([c.controller.make_stop() for c in self._motors.values()])
         while rclpy.ok():
              # control motors
-            states = await transport.cycle([c.controller.make_position(velocity=0, query=True) for c in self._motors.values()])
+            states = await transport.cycle([c.controller.make_brake(query=True) for c in self._motors.values()])
             for state in states:
                 # mapping motor position
-                position = state.values[moteus.Register.POSITION] - self._motors[state.id].offset
+                position = state.values[moteus.Register.POSITION] * 2 * np.pi - self._motors[state.id].offset
                 if self._motors[state.id].reverse:
                     position = -position
                 
-                # normizing position to [-pi, pi]
-                position = position % (2 * np.pi)
-                if position > np.pi:
-                    position -= 2 * np.pi
-                if position < -np.pi:
-                    position += 2 * np.pi
-                
                 # update feedback
                 self._motors[state.id].feedback[0] = position
-                self._motors[state.id].feedback[1] = state.values[moteus.Register.VELOCITY]
-
+                self._motors[state.id].feedback[1] = state.values[moteus.Register.VELOCITY] * 2 * np.pi
+                
                 # publish feedback
                 self._motor_feedback_publisher.publish(
                     MotorFeedback(
                         stamp=self.get_clock().now().to_msg(),
                         id=state.id,
-                        position=position,
-                        velocity=state.values[moteus.Register.VELOCITY],
+                        position=self._motors[state.id].feedback[0],
+                        velocity=self._motors[state.id].feedback[1],
                         torque=state.values[moteus.Register.TORQUE]
                     )
                 )

@@ -17,7 +17,6 @@ def generate_launch_description():
             executable='humanoid_arm_node',
             name='humanoid_arm',
             parameters = [config],
-            respawn=False,
-            arguments=['--ros-args', '--log-level', 'debug']
+            respawn=False
         )
     ])

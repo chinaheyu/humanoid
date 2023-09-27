@@ -26,10 +26,11 @@ def generate_launch_description():
             executable='humanoid_chat_node',
             name='humanoid_chat'
         ),
-        Node(
-            package='humanoid_arm',
-            executable='humanoid_arm_node',
-            name='humanoid_arm'
+        IncludeLaunchDescription(
+            AnyLaunchDescriptionSource([
+                os.path.join(get_package_share_directory('humanoid_arm'), 'launch'),
+                '/humanoid_arm.py'
+            ])
         ),
         Node(
             package='robot_state_publisher',
