@@ -1,5 +1,4 @@
 import moteus
-import threading
 import asyncio
 
 

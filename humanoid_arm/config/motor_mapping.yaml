@@ -3,31 +3,31 @@ humanoid_arm:
     motors:
       motor_14:
         reverse: false
-        offset: -2.084679890736586
+        offset: -1.205804773077357
       motor_15:
         reverse: false
-        offset: -2.893183639751562
+        offset: -2.554557380825807
       motor_16:
         reverse: false
-        offset: -1.7202635798145036
+        offset: -1.7881422296784433
       motor_17:
         reverse: false
-        offset: 3.076590217703139
+        offset: 3.0189700643581845
       motor_18:
         reverse: false
-        offset: -1.9148873922774945
+        offset: -0.07372695161775362
       motor_19:
         reverse: false
-        offset: -2.164926260702854
+        offset: 2.727801336057641
       motor_20:
         reverse: false
-        offset: -1.685557264488591
+        offset: -0.6622003313703827
       motor_21:
         reverse: false
-        offset: -0.966407896367954
+        offset: -0.9178957539510705
       motor_22:
         reverse: false
-        offset: -2.3064359883853043
+        offset: -2.3432515272945595
       motor_23:
         reverse: false
-        offset: -0.5812828448094152
+        offset: -0.15550730237190688

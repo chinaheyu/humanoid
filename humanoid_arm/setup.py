@@ -25,8 +25,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'humanoid_arm_node = humanoid_arm.humanoid_arm_node:main',
-            'teach = humanoid_arm.teach:main',
+            'humanoid_arm_node = humanoid_arm.humanoid_arm_node:main'
         ],
     },
 )
