@@ -5,10 +5,11 @@ import rclpy.qos
 from rclpy.node import Node
 from std_srvs.srv import SetBool
 from humanoid_interface.srv import Speak
-from humanoid_interface.msg import ChatResult
+from humanoid_interface.msg import ChatResult, FaceControl, HeadFeedback
 from .azure_speech import AzureSpeechService
 from .iflytek_spark import SparkDesk
 import sqlite3
+import time
 
 
 class HumanoidChatNode(Node):
@@ -43,7 +44,42 @@ class HumanoidChatNode(Node):
         self._chat_switch_server = self.create_service(SetBool, 'chat_switch', self._chat_switch_callback)
         self._chat_result_publisher = self.create_publisher(ChatResult, "chat_result", rclpy.qos.QoSPresetProfiles.get_from_short_key("SYSTEM_DEFAULT"))
         self._speak_service = self.create_service(Speak, "speak", self._speak_callback)
+        self._face_control_publisher = self.create_publisher(FaceControl, "face_control", rclpy.qos.QoSPresetProfiles.get_from_short_key("SYSTEM_DEFAULT"))
+        
+        # head feedback
+        self._head_feedback_msg = HeadFeedback()
+        self._head_feedback_subscriber = self.create_subscription(HeadFeedback, "head_feedback", self._head_feedback_callback, rclpy.qos.QoSPresetProfiles.get_from_short_key("SENSOR_DATA"))
+        
+        # blink timer
+        self._blink_thread = None
+        self._blink_timer = self.create_timer(5.0, self._blink_timer_callback)
     
+    def _head_feedback_callback(self, msg: HeadFeedback):
+        self._head_feedback_msg = msg
+
+    def _blink_thread_callback(self):
+        msg = FaceControl()
+        # eyelid down
+        msg.pulse_width = self._head_feedback_msg.pulse_width
+        msg.pulse_width[FaceControl.SERVO_LEFT_EYELID_UP_DOWN] = 1400
+        msg.pulse_width[FaceControl.SERVO_RIGHT_EYELID_UP_DOWN] = 1400
+        self._face_control_publisher.publish(msg)
+        # wait
+        time.sleep(0.1)
+        # eyelid open
+        msg.pulse_width = self._head_feedback_msg.pulse_width
+        msg.pulse_width[FaceControl.SERVO_LEFT_EYELID_UP_DOWN] = 1500
+        msg.pulse_width[FaceControl.SERVO_RIGHT_EYELID_UP_DOWN] = 1500
+        self._face_control_publisher.publish(msg)
+
+    def _blink_timer_callback(self):
+        # wait previous thread finish
+        if self._blink_thread is not None:
+            self._blink_thread.join()
+        # start new thread
+        self._blink_thread = threading.Thread(target=self._blink_thread_callback)
+        self._blink_thread.start()
+
     def _speak_callback(self, request: Speak.Request, response: Speak.Response):
         if self._azure.is_speech_synthesising():
             response.result = False
@@ -77,7 +113,36 @@ class HumanoidChatNode(Node):
         if res:
             return res[0]
         return None
-    
+
+    def _chat(self, question):
+        if (prev_response := self._serach_preset_answer(question)) is not None:
+            # Using preset answer in database
+            self.get_logger().info("Found preset answer in database.")
+            print(prev_response)
+            self._azure.text_to_speech(prev_response)
+            self._azure.wait_speech_synthesising()
+        else:
+            # Using LLM
+            self.get_logger().info("Generating response from LLM.")
+            prev_response = ""
+            synthesis_ptr = 0
+            for response in self._chat_model.chat_stream(question):
+                # print stream response
+                print(response[len(prev_response):], end='', flush=True)
+                # synthesis
+                if not self._azure.is_speech_synthesising():
+                    sep_ptr = max(response.rfind(i) for i in [",", ";", ".", "?", "，", "；", "。", "？"])
+                    if sep_ptr > synthesis_ptr:
+                        self._azure.text_to_speech(response[synthesis_ptr:sep_ptr].replace('科大讯飞', '华南理工大学张智军教授').replace('讯飞星火认知大模型', '类人机器人'))
+                        synthesis_ptr = sep_ptr
+                prev_response = response
+            print()
+            if prev_response[synthesis_ptr:]:
+                self._azure.text_to_speech(prev_response[synthesis_ptr:].replace('科大讯飞', '华南理工大学张智军教授').replace('讯飞星火认知大模型', '类人机器人'))
+            self._azure.wait_speech_synthesising()
+        return prev_response
+
+
     def _main_loop(self):
         self._azure.text_to_speech('请对我说小智')
         while self._chatting:
@@ -99,44 +164,16 @@ class HumanoidChatNode(Node):
             if not question:
                 continue
             
-            # Search database
-            if (preset_answer := self._serach_preset_answer(question)) is not None:
-                # Using preset answer
-                self.get_logger().info("Found preset answer in database.")
-                print(preset_answer)
-                self._chat_result_publisher.publish(
-                    ChatResult(
-                        question=question,
-                        answer=preset_answer
-                    )
+            # Chat
+            answer = self._chat(question)
+            
+            # Publish result
+            self._chat_result_publisher.publish(
+                ChatResult(
+                    question=question,
+                    answer=answer
                 )
-                self._azure.text_to_speech(preset_answer)
-                self._azure.wait_speech_synthesising()
-            else:
-                # Using LLM
-                self.get_logger().info("Generating response from LLM.")
-                prev_response = ""
-                synthesis_ptr = 0
-                for response in self._chat_model.chat_stream(question):
-                    # print stream response
-                    print(response[len(prev_response):], end='', flush=True)
-                    # synthesis
-                    if not self._azure.is_speech_synthesising():
-                        sep_ptr = max(response.rfind(i) for i in [",", ";", ".", "?", "，", "；", "。", "？"])
-                        if sep_ptr > synthesis_ptr:
-                            self._azure.text_to_speech(response[synthesis_ptr:sep_ptr].replace('科大讯飞', '华南理工大学张智军教授').replace('讯飞星火认知大模型', '类人机器人'))
-                            synthesis_ptr = sep_ptr
-                    prev_response = response
-                print()
-                self._chat_result_publisher.publish(
-                    ChatResult(
-                        question=question,
-                        answer=prev_response
-                    )
-                )
-                if prev_response[synthesis_ptr:]:
-                    self._azure.text_to_speech(prev_response[synthesis_ptr:].replace('科大讯飞', '华南理工大学张智军教授').replace('讯飞星火认知大模型', '类人机器人'))
-                self._azure.wait_speech_synthesising()
+            )
 
 
 def main(args=None):
