@@ -121,9 +121,12 @@ class HumanoidChatNode(Node):
         }
         current_time = 0.0
         while rclpy.ok():
+            # FIXME: sync viseme with audio
             timestamp, viseme_id = self._viseme_queue.get()
             if current_time < timestamp:
                 time.sleep(timestamp - current_time)
+            else:
+                time.sleep(timestamp)
             current_time = timestamp
             if viseme_id in viseme_to_chin:
                 msg = FaceControl()
