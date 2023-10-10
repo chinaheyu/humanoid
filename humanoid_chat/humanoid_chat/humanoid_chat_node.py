@@ -10,6 +10,7 @@ from .azure_speech import AzureSpeechService
 from .iflytek_spark import SparkDesk
 import sqlite3
 import time
+import queue
 
 
 class HumanoidChatNode(Node):
@@ -27,7 +28,11 @@ class HumanoidChatNode(Node):
             microphone_device="sysdefault:CARD=DELI14870",
             speaker_device="sysdefault:CARD=DELI14870"
         )
-        
+        self._viseme_queue = queue.Queue()
+        self._viseme_thread = threading.Thread(target=self._viseme_thread_callback)
+        self._viseme_thread.start()
+        self._azure.set_viseme_callback(self._viseme_callback)
+
         # initialize chat model
         self._chat_model = SparkDesk(
             os.environ.get('IFLYTEK_APP_ID'),
@@ -61,8 +66,8 @@ class HumanoidChatNode(Node):
         msg = FaceControl()
         # eyelid down
         msg.pulse_width = self._head_feedback_msg.pulse_width
-        msg.pulse_width[FaceControl.SERVO_LEFT_EYELID_UP_DOWN] = 1400
-        msg.pulse_width[FaceControl.SERVO_RIGHT_EYELID_UP_DOWN] = 1400
+        msg.pulse_width[FaceControl.SERVO_LEFT_EYELID_UP_DOWN] = 905
+        msg.pulse_width[FaceControl.SERVO_RIGHT_EYELID_UP_DOWN] = 2088
         self._face_control_publisher.publish(msg)
         # wait
         time.sleep(0.1)
@@ -88,6 +93,46 @@ class HumanoidChatNode(Node):
             self._azure.wait_speech_synthesising()
             response.result = True
         return response
+    
+    def _viseme_thread_callback(self):
+        viseme_to_chin = {
+            0: 910,
+            1: 1100,
+            2: 1100,
+            3: 1000,
+            4: 1000,
+            5: 1000,
+            6: 980,
+            7: 980,
+            8: 980,
+            9: 1100,
+            10: 1100,
+            11: 1100,
+            12: 1000,
+            13: 1100,
+            14: 1000,
+            15: 980,
+            16: 980,
+            17: 1000,
+            18: 980,
+            19: 1000,
+            20: 1100,
+            21: 910
+        }
+        current_time = 0.0
+        while rclpy.ok():
+            timestamp, viseme_id = self._viseme_queue.get()
+            if current_time < timestamp:
+                time.sleep(timestamp - current_time)
+            current_time = timestamp
+            if viseme_id in viseme_to_chin:
+                msg = FaceControl()
+                msg.pulse_width = self._head_feedback_msg.pulse_width
+                msg.pulse_width[FaceControl.SERVO_CHIN_UP_DOWN] = viseme_to_chin[viseme_id]
+                self._face_control_publisher.publish(msg)
+
+    def _viseme_callback(self, timestamp, viseme_id):
+        self._viseme_queue.put((timestamp, viseme_id))
 
     def _chat_switch_callback(self, request: SetBool.Request, response: SetBool.Response):
         if request.data != self._chatting:
