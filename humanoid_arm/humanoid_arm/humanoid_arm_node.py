@@ -10,13 +10,14 @@ import asyncio
 from humanoid_interface.msg import MotorControl, MotorFeedback
 from typing import Dict, List
 from humanoid_interface.srv import PlayArm, GetArmFrameList, TeachArm, PlayArmSequence
-from std_srvs.srv import SetBool
+from std_srvs.srv import SetBool, Empty
 from ament_index_python.packages import get_package_share_directory
 import os
 from .joint_trajectory_planner import FifthOrderTrajectory
 import numpy as np
 import json
 import time
+import math
 
 
 @dataclass
@@ -27,6 +28,7 @@ class MotorDataClass:
     feedback: np.ndarray
     reverse: bool = False
     offset: float = 0.0
+    initialized: bool = False
 
 
 class HumanoidArmNode(Node):
@@ -41,6 +43,7 @@ class HumanoidArmNode(Node):
         self._teach_mode_service = self.create_service(SetBool, "arm/teach_mode", self._teach_mode_callback)
         self._teach_service = self.create_service(TeachArm, "arm/teach", self._teach_callback)
         self._get_frame_list_service = self.create_service(GetArmFrameList, "arm/get_frame_list", self._get_frame_list_callback)
+        self._calibration_service = self.create_service(Empty, "arm/calibration", self._calibration_callback)
         
         self._motors: Dict[int, MotorDataClass] = {}
         for i in range(14, 24):
@@ -55,6 +58,11 @@ class HumanoidArmNode(Node):
         self._control_thread = threading.Thread(target=asyncio.run, args=[self._control_loop()])
         self._control_thread.start()
     
+    def _calibration_callback(self, request: Empty.Request, response: Empty.Response) -> Empty.Response:
+        for motor in self._motors:
+            motor.offset += motor.feedback[0]
+        return response
+
     def _save_frame(self, frame_name) -> bool:
         frame_dict = {m.id: m.feedback[0] for m in self._motors.values()}
         with open(os.path.join(self._frames_data_path, f'{frame_name}.json'), 'w') as fp:
@@ -159,9 +167,25 @@ class HumanoidArmNode(Node):
                 break
             asyncio.sleep(1)
 
-        # Enter control loop
+        # Create transport
         transport = moteus.Fdcanusb()
-        await transport.cycle([c.controller.make_stop() for c in self._motors.values()])
+        
+        # initialize motors
+        while rclpy.ok():
+            try:
+                states = await asyncio.wait_for(transport.cycle([c.controller.make_stop(query=True) for c in self._motors.values()]), 0.1)
+            except asyncio.exceptions.TimeoutError:
+                self.get_logger().error('Moteus send command timeout.')
+            else:
+                for state in states:
+                    angle = state.values[moteus.Register.POSITION] * 2 * np.pi - self._motors[state.id].offset
+                    normalized_angle = math.atan2(math.sin(angle), math.cos(angle))
+                    self._motors[state.id].offset = state.values[moteus.Register.POSITION] * 2 * np.pi - normalized_angle
+                    self._motors[state.id].initialized = True
+                if all([m.initialized for m in self._motors.values()]):
+                    break
+
+        # control loop
         while rclpy.ok():
             try:
                 # Send command
@@ -172,7 +196,7 @@ class HumanoidArmNode(Node):
                         c.controller.make_position(
                             position=((-c.target[0] if c.reverse else c.target[0]) + c.offset) / (2 * np.pi),
                             velocity=c.target[1] / (2 * np.pi),
-                            maximum_torque=5.0,
+                            maximum_torque=8.0,
                             query=True
                         )
                         for c in self._motors.values()

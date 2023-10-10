@@ -41,7 +41,7 @@ wait_all_device_online() {
     wait_for_path "/dev/serial/by-id/usb-mjbots_fdcanusb_FFD4048A-if00" 1
 
     wait_for_path "/dev/serial/by-id/usb-scut_humanoid_205D32834D31-if00" 1
-    wait_for_path "/dev/serial/by-id/usb-scut_humanoid_2064378F5948-if00" 1
+    # wait_for_path "/dev/serial/by-id/usb-scut_humanoid_2064378F5948-if00" 1
     wait_for_path "/dev/serial/by-id/usb-scut_humanoid_205732834D31-if00" 1
     wait_for_path "/dev/serial/by-id/usb-scut_humanoid_206F32844D31-if00" 1
 }

@@ -4,7 +4,7 @@ import rclpy
 import rclpy.qos
 from rclpy.node import Node
 from std_srvs.srv import SetBool
-from humanoid_interface.srv import Speak
+from humanoid_interface.srv import Speak, PlayArmSequence
 from humanoid_interface.msg import ChatResult, FaceControl, HeadFeedback
 from .azure_speech import AzureSpeechService
 from .iflytek_spark import SparkDesk
@@ -42,14 +42,13 @@ class HumanoidChatNode(Node):
         
         # Chatting state
         self._chatting = True
-        self._chat_thread = threading.Thread(target=self._main_loop)
-        self._chat_thread.start()
         
         # Ros2 interface
         self._chat_switch_server = self.create_service(SetBool, 'chat_switch', self._chat_switch_callback)
         self._chat_result_publisher = self.create_publisher(ChatResult, "chat_result", rclpy.qos.QoSPresetProfiles.get_from_short_key("SYSTEM_DEFAULT"))
         self._speak_service = self.create_service(Speak, "speak", self._speak_callback)
         self._face_control_publisher = self.create_publisher(FaceControl, "face_control", rclpy.qos.QoSPresetProfiles.get_from_short_key("SYSTEM_DEFAULT"))
+        self._play_arm_sequence_client = self.create_client(PlayArmSequence, "arm/play_sequence")
         
         # head feedback
         self._head_feedback_msg = HeadFeedback()
@@ -58,6 +57,10 @@ class HumanoidChatNode(Node):
         # blink timer
         self._blink_thread = None
         self._blink_timer = self.create_timer(5.0, self._blink_timer_callback)
+        
+        # start chat loop
+        self._chat_thread = threading.Thread(target=self._main_loop)
+        self._chat_thread.start()
     
     def _head_feedback_callback(self, msg: HeadFeedback):
         self._head_feedback_msg = msg
@@ -190,9 +193,18 @@ class HumanoidChatNode(Node):
             self._azure.wait_speech_synthesising()
         return prev_response
 
+    def _wave_hand(self):
+        self._play_arm_sequence_client.wait_for_service()
+        hello_req = PlayArmSequence.Request()
+        hello_req.duration = [1.0, 0.6, 0.6, 0.6, 0.6, 0.6, 1.0]
+        hello_req.frame_name = ['hello1', 'hello2', 'hello1', 'hello2', 'hello1', 'hello2', 'home']
+        self._play_arm_sequence_client.call_async(hello_req)
 
     def _main_loop(self):
-        self._azure.text_to_speech('请对我说小智')
+        self._azure.text_to_speech('大家好，我是华南理工大学开发的类人机器人，我的名字叫小智。')
+        time.sleep(0.5)
+        self._wave_hand()
+
         while self._chatting:
             # Detect keyword
             self.get_logger().info("Recognizing keyword.")
