@@ -61,6 +61,9 @@ class HumanoidArmNode(Node):
     def _calibration_callback(self, request: Empty.Request, response: Empty.Response) -> Empty.Response:
         for motor in self._motors:
             motor.offset += motor.feedback[0]
+        frame_dict = {m.id: m.offset for m in self._motors.values()}
+        with open(os.path.join(self._frames_data_path, 'calibration.json'), 'w') as fp:
+            fp.write(json.dumps(frame_dict, indent=4))
         return response
 
     def _save_frame(self, frame_name) -> bool:

@@ -45,16 +45,25 @@ wait_for_path() {
 }
 
 wait_all_device_online() {
+    # audio
     wait_for_path "/dev/input/by-id/usb-DELI_DELI-14870_20080411-event-if03" 1
     wait_for_path "/dev/snd/by-id/usb-DELI_DELI-14870_20080411-00" 1
     wait_for_path "/proc/asound/DELI14870" 1
 
+    # arm
     wait_for_path "/dev/serial/by-id/usb-mjbots_fdcanusb_FFD4048A-if00" 1
 
+    # head
     wait_for_path "/dev/serial/by-id/usb-scut_humanoid_205D32834D31-if00" 1
-    wait_for_path "/dev/serial/by-id/usb-scut_humanoid_2064378F5948-if00" 1
-    wait_for_path "/dev/serial/by-id/usb-scut_humanoid_205732834D31-if00" 1
-    wait_for_path "/dev/serial/by-id/usb-scut_humanoid_206F32844D31-if00" 1
+
+    # waist
+    # wait_for_path "/dev/serial/by-id/usb-scut_humanoid_2064378F5948-if00" 1
+
+    # left leg
+    # wait_for_path "/dev/serial/by-id/usb-scut_humanoid_205732834D31-if00" 1
+
+    # right leg
+    # wait_for_path "/dev/serial/by-id/usb-scut_humanoid_206F32844D31-if00" 1
 }
 
 # catch error

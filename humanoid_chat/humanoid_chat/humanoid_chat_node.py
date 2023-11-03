@@ -200,104 +200,12 @@ class HumanoidChatNode(Node):
         hello_req.duration = [1.0, 0.6, 0.6, 0.6, 0.6, 0.6, 1.0]
         hello_req.frame_name = ['hello1', 'hello2', 'hello1', 'hello2', 'hello1', 'hello2', 'home']
         self._play_arm_sequence_client.call_async(hello_req)
-    
-    def _stand_up(self):
-        msg = MotorControl()
-
-        msg.id = 3
-        msg.control_type = MotorControl.MOTOR_MIT_CONTROL
-        msg.position = 0.0
-        msg.kp = 20.0
-        msg.kd = 1.0
-        self._motor_control_publisher.publish(msg)
-        
-        msg.id = 4
-        msg.control_type = MotorControl.MOTOR_MIT_CONTROL
-        msg.position = -0.233
-        msg.kp = 29.0
-        msg.kd = 1.0
-        self._motor_control_publisher.publish(msg)
-        
-        msg.id = 5
-        msg.control_type = MotorControl.MOTOR_MIT_CONTROL
-        msg.position = 0.328
-        msg.kp = 29.0
-        msg.kd = 1.0
-        self._motor_control_publisher.publish(msg)
-        
-        msg.id = 9
-        msg.control_type = MotorControl.MOTOR_MIT_CONTROL
-        msg.position = 0.363
-        msg.kp = 20.0
-        msg.kd = 1.0
-        self._motor_control_publisher.publish(msg)
-        
-        msg.id = 10
-        msg.control_type = MotorControl.MOTOR_MIT_CONTROL
-        msg.position = 0.093
-        msg.kp = 29.0
-        msg.kd = 1.0
-        self._motor_control_publisher.publish(msg)
-        
-        msg.id = 11
-        msg.control_type = MotorControl.MOTOR_MIT_CONTROL
-        msg.position = -0.023
-        msg.kp = 29.0
-        msg.kd = 1.0
-        self._motor_control_publisher.publish(msg)
-    
-    def _sit_down(self):
-        msg = MotorControl()
-        
-        msg.id = 3
-        msg.control_type = MotorControl.MOTOR_MIT_CONTROL
-        msg.position = 0.0
-        msg.kp = 20.0
-        msg.kd = 1.0
-        self._motor_control_publisher.publish(msg)
-        
-        msg.id = 4
-        msg.control_type = MotorControl.MOTOR_MIT_CONTROL
-        msg.position = 0.839
-        msg.kp = 29.0
-        msg.kd = 1.0
-        self._motor_control_publisher.publish(msg)
-        
-        msg.id = 5
-        msg.control_type = MotorControl.MOTOR_MIT_CONTROL
-        msg.position = 2.141
-        msg.kp = 29.0
-        msg.kd = 1.0
-        self._motor_control_publisher.publish(msg)
-        
-        msg.id = 9
-        msg.control_type = MotorControl.MOTOR_MIT_CONTROL
-        msg.position = 0.363
-        msg.kp = 20.0
-        msg.kd = 1.0
-        self._motor_control_publisher.publish(msg)
-        
-        msg.id = 10
-        msg.control_type = MotorControl.MOTOR_MIT_CONTROL
-        msg.position = 1.143
-        msg.kp = 29.0
-        msg.kd = 1.0
-        self._motor_control_publisher.publish(msg)
-        
-        msg.id = 11
-        msg.control_type = MotorControl.MOTOR_MIT_CONTROL
-        msg.position = -0.955
-        msg.kp = 29.0
-        msg.kd = 1.0
-        self._motor_control_publisher.publish(msg)
 
     def _main_loop(self):
         self._azure.text_to_speech('大家好，我是华南理工大学开发的类人机器人，我的名字叫滑智琳，你可以对我说小琳。')
-        # self._stand_up()
         time.sleep(0.5)
-        # self._wave_hand()
+        self._wave_hand()
         self._azure.wait_speech_synthesising()
-        # self._sit_down()
 
         while self._chatting:
             # Detect keyword
