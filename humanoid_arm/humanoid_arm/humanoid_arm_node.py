@@ -79,6 +79,7 @@ class HumanoidArmNode(Node):
         return response
     
     def _load_parameter(self):
+        # load motor parameters
         for param_name in self.get_parameters_by_prefix('motors'):
             param = self.get_parameter(f'motors.{param_name}')
             self.get_logger().info(f'Load parameter {param.name} = {param.value}')
@@ -89,6 +90,16 @@ class HumanoidArmNode(Node):
                 if param.name.endswith('reverse'):
                     self._motors[motor_id].reverse = param.value
         
+        # set home position
+        try:
+            with open(os.path.join(self._frames_data_path, 'home.json'), 'r') as fp:
+                frame_dict = json.load(fp)
+        except RuntimeError:
+            pass
+        else:
+            for m in self._motors.values():
+                m.target[0] = frame_dict[str(m.id)]
+
     def _parameter_callback(self, params: List[Parameter]) -> SetParametersResult:
         for param in params:
             if param.name.startswith('motors'):

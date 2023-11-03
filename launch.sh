@@ -2,6 +2,17 @@
 
 set -e
 
+wait_network_online() {
+    while true; do
+        if ping -c 1 "eastasia.api.cognitive.microsoft.com" > /dev/null 2>&1; then
+            break
+        else
+            echo "Network is not online. Waiting..."
+            sleep 1
+        fi
+    done
+}
+
 handle_error() {
     echo "An error occurred in command: $BASH_COMMAND"
     exit 1
@@ -41,13 +52,16 @@ wait_all_device_online() {
     wait_for_path "/dev/serial/by-id/usb-mjbots_fdcanusb_FFD4048A-if00" 1
 
     wait_for_path "/dev/serial/by-id/usb-scut_humanoid_205D32834D31-if00" 1
-    # wait_for_path "/dev/serial/by-id/usb-scut_humanoid_2064378F5948-if00" 1
+    wait_for_path "/dev/serial/by-id/usb-scut_humanoid_2064378F5948-if00" 1
     wait_for_path "/dev/serial/by-id/usb-scut_humanoid_205732834D31-if00" 1
     wait_for_path "/dev/serial/by-id/usb-scut_humanoid_206F32844D31-if00" 1
 }
 
 # catch error
 trap 'handle_error' ERR
+
+# wait for network
+wait_network_online
 
 # wait for devices
 wait_all_device_online

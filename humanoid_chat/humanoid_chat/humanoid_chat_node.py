@@ -5,7 +5,7 @@ import rclpy.qos
 from rclpy.node import Node
 from std_srvs.srv import SetBool
 from humanoid_interface.srv import Speak, PlayArmSequence
-from humanoid_interface.msg import ChatResult, FaceControl, HeadFeedback
+from humanoid_interface.msg import ChatResult, FaceControl, HeadFeedback, MotorControl
 from .azure_speech import AzureSpeechService
 from .iflytek_spark import SparkDesk
 import sqlite3
@@ -49,6 +49,7 @@ class HumanoidChatNode(Node):
         self._speak_service = self.create_service(Speak, "speak", self._speak_callback)
         self._face_control_publisher = self.create_publisher(FaceControl, "face_control", rclpy.qos.QoSPresetProfiles.get_from_short_key("SYSTEM_DEFAULT"))
         self._play_arm_sequence_client = self.create_client(PlayArmSequence, "arm/play_sequence")
+        self._motor_control_publisher = self.create_publisher(MotorControl, "motor_control", rclpy.qos.QoSPresetProfiles.get_from_short_key("SYSTEM_DEFAULT"))
         
         # head feedback
         self._head_feedback_msg = HeadFeedback()
@@ -199,16 +200,109 @@ class HumanoidChatNode(Node):
         hello_req.duration = [1.0, 0.6, 0.6, 0.6, 0.6, 0.6, 1.0]
         hello_req.frame_name = ['hello1', 'hello2', 'hello1', 'hello2', 'hello1', 'hello2', 'home']
         self._play_arm_sequence_client.call_async(hello_req)
+    
+    def _stand_up(self):
+        msg = MotorControl()
+
+        msg.id = 3
+        msg.control_type = MotorControl.MOTOR_MIT_CONTROL
+        msg.position = 0.0
+        msg.kp = 20.0
+        msg.kd = 1.0
+        self._motor_control_publisher.publish(msg)
+        
+        msg.id = 4
+        msg.control_type = MotorControl.MOTOR_MIT_CONTROL
+        msg.position = -0.233
+        msg.kp = 29.0
+        msg.kd = 1.0
+        self._motor_control_publisher.publish(msg)
+        
+        msg.id = 5
+        msg.control_type = MotorControl.MOTOR_MIT_CONTROL
+        msg.position = 0.328
+        msg.kp = 29.0
+        msg.kd = 1.0
+        self._motor_control_publisher.publish(msg)
+        
+        msg.id = 9
+        msg.control_type = MotorControl.MOTOR_MIT_CONTROL
+        msg.position = 0.363
+        msg.kp = 20.0
+        msg.kd = 1.0
+        self._motor_control_publisher.publish(msg)
+        
+        msg.id = 10
+        msg.control_type = MotorControl.MOTOR_MIT_CONTROL
+        msg.position = 0.093
+        msg.kp = 29.0
+        msg.kd = 1.0
+        self._motor_control_publisher.publish(msg)
+        
+        msg.id = 11
+        msg.control_type = MotorControl.MOTOR_MIT_CONTROL
+        msg.position = -0.023
+        msg.kp = 29.0
+        msg.kd = 1.0
+        self._motor_control_publisher.publish(msg)
+    
+    def _sit_down(self):
+        msg = MotorControl()
+        
+        msg.id = 3
+        msg.control_type = MotorControl.MOTOR_MIT_CONTROL
+        msg.position = 0.0
+        msg.kp = 20.0
+        msg.kd = 1.0
+        self._motor_control_publisher.publish(msg)
+        
+        msg.id = 4
+        msg.control_type = MotorControl.MOTOR_MIT_CONTROL
+        msg.position = 0.839
+        msg.kp = 29.0
+        msg.kd = 1.0
+        self._motor_control_publisher.publish(msg)
+        
+        msg.id = 5
+        msg.control_type = MotorControl.MOTOR_MIT_CONTROL
+        msg.position = 2.141
+        msg.kp = 29.0
+        msg.kd = 1.0
+        self._motor_control_publisher.publish(msg)
+        
+        msg.id = 9
+        msg.control_type = MotorControl.MOTOR_MIT_CONTROL
+        msg.position = 0.363
+        msg.kp = 20.0
+        msg.kd = 1.0
+        self._motor_control_publisher.publish(msg)
+        
+        msg.id = 10
+        msg.control_type = MotorControl.MOTOR_MIT_CONTROL
+        msg.position = 1.143
+        msg.kp = 29.0
+        msg.kd = 1.0
+        self._motor_control_publisher.publish(msg)
+        
+        msg.id = 11
+        msg.control_type = MotorControl.MOTOR_MIT_CONTROL
+        msg.position = -0.955
+        msg.kp = 29.0
+        msg.kd = 1.0
+        self._motor_control_publisher.publish(msg)
 
     def _main_loop(self):
-        self._azure.text_to_speech('大家好，我是华南理工大学开发的类人机器人，我的名字叫小智。')
+        self._azure.text_to_speech('大家好，我是华南理工大学开发的类人机器人，我的名字叫滑智琳，你可以对我说小琳。')
+        # self._stand_up()
         time.sleep(0.5)
-        self._wave_hand()
+        # self._wave_hand()
+        self._azure.wait_speech_synthesising()
+        # self._sit_down()
 
         while self._chatting:
             # Detect keyword
             self.get_logger().info("Recognizing keyword.")
-            while not self._azure.recognize_keyword(os.path.join(self._package_path, "xz.table")):
+            while not self._azure.recognize_keyword(os.path.join(self._package_path, "xl.table")):
                 self.get_logger().error("Keyword recognize faliure.")
             self.get_logger().info("Keyword recognize success.")
             self._azure.text_to_speech('我在')

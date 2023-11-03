@@ -71,7 +71,6 @@ class AzureSpeechService:
             if response is None:
                 break
             yield response
-        result.get()
 
     def text_to_speech(self, text):
         self._speech_synthesising = True

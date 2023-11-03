@@ -8,6 +8,8 @@ import urllib.parse
 import websocket
 import ssl
 import queue
+import random
+import string
 
 
 
@@ -54,9 +56,14 @@ class AuthorizeUrl:
 
 
 class SparkDesk:
-    def __init__(self, app_id, api_key, api_secret):
-        self._url = AuthorizeUrl(api_key, api_secret, 'spark-api.xf-yun.com', '/v2.1/chat')
+    def __init__(self, app_id, api_key, api_secret, temperature=0.5, max_tokens=2048, top_k=4):
+        self._url = AuthorizeUrl(api_key, api_secret, 'spark-api.xf-yun.com', '/v3.1/chat')
         self._app_id = app_id
+        self._temperature = temperature
+        self._max_tokens = max_tokens
+        self._top_k = top_k
+        self._uid = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(32))
+        self._total_tokens = []
         self._chat_history = []
         self._total_response = ""
         self._response_queue = queue.Queue()
@@ -65,14 +72,14 @@ class SparkDesk:
         data = {
             "header": {
                 "app_id": self._app_id,
-                "uid": "iflytex"
+                "uid": self._uid
             },
             "parameter": {
                 "chat": {
-                    "domain": "generalv2",
-                    "random_threshold": 0.5,
-                    "max_tokens": 2048,
-                    "auditing": "default"
+                    "domain": "generalv3",
+                    "temperature": self._temperature,
+                    "max_tokens": self._max_tokens,
+                    "top_k": self._top_k
                 }
             },
             "payload": {
@@ -87,12 +94,17 @@ class SparkDesk:
         msg = json.loads(message)
         code = msg["header"]["code"]
         if code != 0:
-            raise RuntimeError(msg["header"]["message"])
+            raise RuntimeError(f'sid: {msg["header"]["sid"]}, message: {msg["header"]["message"]}')
         self._total_response += msg["payload"]["choices"]["text"][0]["content"]
         self._response_queue.put(self._total_response)
         if msg["payload"]["choices"]["status"] == 2:
+            self._total_tokens.append(msg["payload"]["usage"]["text"]["total_tokens"])
             self._response_queue.put(None)
             ws.close()
+
+    @property
+    def tokens(self):
+        return self._total_tokens
 
     def _on_error(self, ws, error):
         print(error)
@@ -103,6 +115,10 @@ class SparkDesk:
     def _on_open(self, ws):
         self._total_response = ""
         ws.send(json.dumps(self._generate_params()))
+
+    def reset(self):
+        self._total_tokens.clear()
+        self._chat_history.clear()
 
     def chat(self, question):
         self._chat_history.append({"role": "user", "content": question})
@@ -116,12 +132,14 @@ class SparkDesk:
 
         return self._total_response
 
-    def chat_stream(self, question):
-        threading.Thread(target=self.chat, args=[question]).start()
+    def chat_stream(self, question, timeout=10.0):
+        chat_thread = threading.Thread(target=self.chat, args=[question])
+        chat_thread.start()
         while True:
             try:
-                response = self._response_queue.get(timeout=5.0)
+                response = self._response_queue.get(timeout=timeout)
             except queue.Empty:
+                chat_thread.join()
                 self._chat_history.clear()
                 yield "非常抱歉，我还无法回答您的问题。"
                 break
