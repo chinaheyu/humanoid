@@ -59,7 +59,7 @@ class HumanoidArmNode(Node):
         self._control_thread.start()
     
     def _calibration_callback(self, request: Empty.Request, response: Empty.Response) -> Empty.Response:
-        for motor in self._motors:
+        for motor in self._motors.values():
             motor.offset += motor.feedback[0]
         frame_dict = {m.id: m.offset for m in self._motors.values()}
         with open(os.path.join(self._frames_data_path, 'calibration.json'), 'w') as fp:
@@ -189,7 +189,7 @@ class HumanoidArmNode(Node):
             try:
                 states = await asyncio.wait_for(transport.cycle([c.controller.make_stop(query=True) for c in self._motors.values()]), 0.1)
             except asyncio.exceptions.TimeoutError:
-                self.get_logger().error('Moteus send command timeout.')
+                self.get_logger().warning('Moteus send command timeout.')
             else:
                 for state in states:
                     angle = state.values[moteus.Register.POSITION] * 2 * np.pi - self._motors[state.id].offset

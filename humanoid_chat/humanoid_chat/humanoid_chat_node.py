@@ -200,8 +200,21 @@ class HumanoidChatNode(Node):
         hello_req.duration = [1.0, 0.6, 0.6, 0.6, 0.6, 0.6, 1.0]
         hello_req.frame_name = ['hello1', 'hello2', 'hello1', 'hello2', 'hello1', 'hello2', 'home']
         self._play_arm_sequence_client.call_async(hello_req)
+    
+    def _fix_leg_motor(self):
+        for i in [4, 5, 10, 11]:
+            msg = MotorControl()
+            msg.id = i
+            msg.control_type = MotorControl.MOTOR_MIT_CONTROL
+            msg.kp = 25.0
+            msg.kd = 2.0
+            msg.position = 0.0
+            msg.velocity = 0.0
+            msg.torque = 0.0
+            self._motor_control_publisher.publish(msg)
 
     def _main_loop(self):
+        self._fix_leg_motor()
         self._azure.text_to_speech('大家好，我是华南理工大学开发的类人机器人，我的名字叫滑智琳，你可以对我说小琳。')
         time.sleep(0.5)
         self._wave_hand()

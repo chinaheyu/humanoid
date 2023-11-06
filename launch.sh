@@ -57,13 +57,13 @@ wait_all_device_online() {
     wait_for_path "/dev/serial/by-id/usb-scut_humanoid_205D32834D31-if00" 1
 
     # waist
-    # wait_for_path "/dev/serial/by-id/usb-scut_humanoid_2064378F5948-if00" 1
+    wait_for_path "/dev/serial/by-id/usb-scut_humanoid_2064378F5948-if00" 1
 
     # left leg
-    # wait_for_path "/dev/serial/by-id/usb-scut_humanoid_205732834D31-if00" 1
+    wait_for_path "/dev/serial/by-id/usb-scut_humanoid_205732834D31-if00" 1
 
     # right leg
-    # wait_for_path "/dev/serial/by-id/usb-scut_humanoid_206F32844D31-if00" 1
+    wait_for_path "/dev/serial/by-id/usb-scut_humanoid_206F32844D31-if00" 1
 }
 
 # catch error
@@ -77,8 +77,8 @@ wait_all_device_online
 echo "All devices are connected!"
 
 # set sound card volumn
-amixer -q -c DELI14870 sset PCM 70%
-amixer -q -c DELI14870 sset Mic 50%
+amixer -q -c DELI14870 sset PCM 100%
+amixer -q -c DELI14870 sset Mic 100%
 echo "Set sound card volumn success!"
 
 # find ros2 workspace
