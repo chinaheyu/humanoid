@@ -2,6 +2,7 @@
 
 set -e
 
+ROS_DISTRO=foxy
 SCRIPTPATH=$(readlink -f "$0")
 TOP_DIR=$(dirname "$SCRIPTPATH")
 
