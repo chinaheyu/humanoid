@@ -20,7 +20,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'humanoid_chat_node = humanoid_chat.humanoid_chat_node:main'
+            'humanoid_chat_node = humanoid_chat.humanoid_chat_node:main',
+            'chat_demo = humanoid_chat.chat_demo:main'
         ],
     },
 )

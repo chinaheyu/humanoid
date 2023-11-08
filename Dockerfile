@@ -5,10 +5,7 @@ ENV OVERLAY_WS=/opt/ros/overlay_ws
 COPY . $OVERLAY_WS/src
 
 WORKDIR $OVERLAY_WS
-RUN . /opt/ros/$ROS_DISTRO/setup.sh && \
-    apt-get update && \
-    apt-get install -y python3-pip && \
-    ./src/install_dependency.sh && \
+RUN ./src/install_dependency.sh && \
     rm -rf /var/lib/apt/lists/*
 
 RUN . /opt/ros/$ROS_DISTRO/setup.sh && \

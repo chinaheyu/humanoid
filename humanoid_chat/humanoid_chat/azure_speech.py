@@ -1,5 +1,6 @@
 import azure.cognitiveservices.speech as speechsdk
 import queue
+import time
 
 
 class AzureSpeechService:
@@ -22,8 +23,11 @@ class AzureSpeechService:
         self._speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_config)
         self._speech_synthesizer.synthesis_completed.connect(self._synthesis_stop)
         self._speech_synthesizer.synthesis_canceled.connect(self._synthesis_stop)
+        self._speech_synthesizer.viseme_received.connect(self._viseme)
         self._speech_synthesis_result = None
         self._speech_synthesising = False
+        self._viseme_callback = None
+        self._synthesis_start_time = time.time()
         
         # init keyword model
         audio_config = speechsdk.audio.AudioConfig(use_default_microphone=microphone_device is None, device_name=microphone_device)
@@ -38,11 +42,18 @@ class AzureSpeechService:
     def _recognizing(self, evt):
         self._speech_recognize_queue.put(evt.result.text)
     
+    def _viseme(self, evt: speechsdk.SpeechSynthesisVisemeEventArgs):
+        if self._viseme_callback is not None:
+            self._viseme_callback(evt.audio_offset / 10000000, evt.viseme_id)
+
     def _recognized(self, evt):
         self._speech_recognize_queue.put(evt.result.text)
         self._speech_recognize_queue.put(None)
         self._speech_recognizer.stop_continuous_recognition()
     
+    def set_viseme_callback(self, callback):
+        self._viseme_callback = callback
+
     def is_speech_synthesising(self):
         return self._speech_synthesising
 
@@ -51,16 +62,21 @@ class AzureSpeechService:
             self._speech_synthesis_result.get()
 
     def speech_to_text(self):
+        while not self._speech_recognize_queue.empty():
+            response = self._speech_recognize_queue.get()
+            if response is None:
+                break
+            yield response
+            return
         result = self._speech_recognizer.start_continuous_recognition_async()
         while True:
             try:
-                response = self._speech_recognize_queue.get(timeout=5.0)
+                response = self._speech_recognize_queue.get(timeout=10.0)
             except queue.Empty:
                 break
             if response is None:
                 break
             yield response
-        result.get()
 
     def text_to_speech(self, text):
         self._speech_synthesising = True

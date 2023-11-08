@@ -171,3 +171,33 @@ class ApiHeadFeedbackResponse(BaseModel):
             ]
         }
     }
+
+
+class ApiPlayArmRequest(BaseModel):
+    frame_name: str
+    duration: float
+    
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "frame_name": 'home',
+                    "duration": 1.0
+                }
+            ]
+        }
+    }
+
+
+class ApiGetArmFramesResponse(BaseModel):
+    frames: List[str]
+    
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "frames": ["home", "frame1", "frame2"]
+                }
+            ]
+        }
+    }

@@ -1,0 +1,4 @@
+* text eol=lf
+*.STL binary
+*.table binary
+*.db binary

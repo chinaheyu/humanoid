@@ -8,7 +8,6 @@
 #include <rclcpp/rclcpp.hpp>
 #include <string>
 
-#include "foot_kinematics.h"
 #include "humanoid_base/rich.h"
 
 namespace humanoid {
@@ -48,11 +47,6 @@ HumanoidBaseNode::HumanoidBaseNode(const rclcpp::NodeOptions& options)
     head_feedback_publisher_ =
         this->create_publisher<humanoid_interface::msg::HeadFeedback>(
             "head_feedback", rclcpp::SensorDataQoS());
-    joint_state_publisher_ =
-        this->create_publisher<sensor_msgs::msg::JointState>("joint_states", 5);
-    publish_joint_state_timer_ = this->create_wall_timer(
-        std::chrono::milliseconds(10),
-        std::bind(&HumanoidBaseNode::publish_joint_state_, this));
 
     // Create timer for auto scan usb device
     scan_device_timer_ = this->create_wall_timer(
@@ -165,13 +159,6 @@ void HumanoidBaseNode::publish_motor_feedback_(
         msg.velocity = data.get_message().velocity / 1000.0;
         msg.torque = data.get_message().torque / 1000.0;
         motor_feedback_publisher_->publish(msg);
-
-        // publish joint state
-        if (it->second.mapping.find("joint") == 0) {
-            joint_state_[it->second.mapping] = motor_position;
-        } else if (it->second.mapping.find("foot_") == 0) {
-            foot_state_[it->second.mapping] = motor_position;
-        }
     }
 }
 
@@ -262,21 +249,6 @@ void HumanoidBaseNode::neck_control_callback_(
 void HumanoidBaseNode::load_parameters_() {
     std::lock_guard<std::mutex> lock(serials_container_mutex_);
 
-    // Load joint names
-    if (this->has_parameter("joint_names")) {
-        std::vector<std::string> joint_names =
-            this->get_parameter("joint_names").as_string_array();
-        for (const auto& joint_name : joint_names) {
-            joint_state_[joint_name] = 0.0;
-        }
-    }
-
-    // Init foot state
-    foot_state_["foot_left_upper"] = 0.0;
-    foot_state_["foot_left_lower"] = 0.0;
-    foot_state_["foot_right_upper"] = 0.0;
-    foot_state_["foot_right_lower"] = 0.0;
-
     // Load head parameters
     this->get_parameter_or<std::string>("head", params_.head_device, "unknown");
     RCLCPP_INFO_STREAM(this->get_logger(), CL_BOLDGREEN << "Load head: "
@@ -317,15 +289,6 @@ void HumanoidBaseNode::load_parameters_() {
                                        << params_.motors[motor_id].offset
                                        << CL_RESET);
             }
-            if (key == "mapping") {
-                params_.motors[motor_id].mapping =
-                    this->get_parameter(param_name).as_string();
-                RCLCPP_INFO_STREAM(this->get_logger(),
-                                   CL_BOLDGREEN
-                                       << "Set motor " << key << ": "
-                                       << params_.motors[motor_id].mapping
-                                       << CL_RESET);
-            }
         }
     }
 }
@@ -342,7 +305,6 @@ bool HumanoidBaseNode::parse_motor_parameter_(const std::string& param_name,
             motor.id = id_out;
             motor.reverse = false;
             motor.offset = 0.0;
-            motor.mapping = "unknown";
             params_.motors.emplace(id_out, std::move(motor));
             RCLCPP_INFO_STREAM(this->get_logger(),
                                CL_BOLDGREEN << "New motor: motor_"
@@ -376,9 +338,6 @@ void HumanoidBaseNode::update_parameters_callback_(
                 if (key == "offset") {
                     params_.motors[motor_id].offset = param.value.double_value;
                 }
-                if (key == "mapping") {
-                    params_.motors[motor_id].mapping = param.value.string_value;
-                }
             }
         }
     }
@@ -400,9 +359,6 @@ void HumanoidBaseNode::update_parameters_callback_(
                 }
                 if (key == "offset") {
                     params_.motors[motor_id].offset = 0.0;
-                }
-                if (key == "mapping") {
-                    params_.motors[motor_id].mapping = "unknown";
                 }
             }
         }
@@ -426,33 +382,9 @@ void HumanoidBaseNode::update_parameters_callback_(
                 if (key == "offset") {
                     params_.motors[motor_id].offset = param.value.double_value;
                 }
-                if (key == "mapping") {
-                    params_.motors[motor_id].mapping = param.value.string_value;
-                }
             }
         }
     }
-}
-
-void HumanoidBaseNode::publish_joint_state_() {
-    // foot kinematics
-    if (!FootKinematics::forward(
-            foot_state_["foot_left_upper"], foot_state_["foot_left_lower"],
-            joint_state_["joint7"], joint_state_["joint6"]))
-        return;
-
-    if (!FootKinematics::forward(
-            foot_state_["foot_right_upper"], foot_state_["foot_right_lower"],
-            joint_state_["joint13"], joint_state_["joint12"]))
-        return;
-
-    sensor_msgs::msg::JointState msg;
-    msg.header.stamp = this->now();
-    for (const auto& it : joint_state_) {
-        msg.name.push_back(it.first);
-        msg.position.push_back(it.second);
-    }
-    joint_state_publisher_->publish(msg);
 }
 
 }  // namespace humanoid

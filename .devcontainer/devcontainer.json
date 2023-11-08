@@ -1,0 +1,36 @@
+{
+    "name": "humanoid",
+    "image": "ros:foxy",
+    "workspaceMount": "source=${localWorkspaceFolder},target=/workspace/src,type=bind",
+    "workspaceFolder": "/workspace",
+    "postCreateCommand": "cp -r /workspace/src/.vscode /workspace && bash src/install_dependency.sh",
+    "runArgs": ["--name", "humanoid_devcontainer"],
+    "mounts": [
+        {
+            "source": "humanoid_devcontainer_build",
+            "target": "/workspace/build",
+            "type": "volume"
+        },
+        {
+            "source": "humanoid_devcontainer_log",
+            "target": "/workspace/log",
+            "type": "volume"
+        },
+        {
+            "source": "humanoid_devcontainer_install",
+            "target": "/workspace/install",
+            "type": "volume"
+        }
+    ],
+    "customizations": {
+		"vscode": {
+			"extensions": [
+                "ms-iot.vscode-ros",
+                "llvm-vs-code-extensions.vscode-clangd",
+                "gruntfuggly.todo-tree",
+                "twxs.cmake",
+                "cschlosser.doxdocgen"
+			]
+		}
+	}
+}
