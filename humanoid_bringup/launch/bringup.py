@@ -21,16 +21,15 @@ def generate_launch_description():
             executable='humanoid_web_node',
             name='humanoid_web'
         ),
-        # Node(
-        #     package='humanoid_chat',
-        #     executable='humanoid_chat_node',
-        #     name='humanoid_chat'
-        # ),
-        IncludeLaunchDescription(
-            AnyLaunchDescriptionSource([
-                os.path.join(get_package_share_directory('humanoid_arm'), 'launch'),
-                '/humanoid_arm.py'
-            ])
+        Node(
+            package='humanoid_chat',
+            executable='humanoid_chat_node',
+            name='humanoid_chat'
+        ),
+        Node(
+            package='humanoid_arm',
+            executable='humanoid_arm_node',
+            name='humanoid_arm'
         ),
         Node(
             package='robot_state_publisher',

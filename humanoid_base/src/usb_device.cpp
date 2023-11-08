@@ -73,6 +73,7 @@ USBDevice::USBDevice(const USBDeviceInfo &info, unsigned char in_ep,
 
 USBDevice::~USBDevice() {
     libusb_release_interface(dev_handle_, 0);
+    libusb_attach_kernel_driver(dev_handle_, 0);
     libusb_close(dev_handle_);
 }
 

@@ -35,7 +35,7 @@ class HumanoidArmNode(Node):
     def __init__(self):
         super().__init__('humanoid_arm', allow_undeclared_parameters=True, automatically_declare_parameters_from_overrides=True)
         
-        self._teach_mode = False
+        self._teach_mode = True
         
         self._frames_data_path = os.path.join(get_package_share_directory('humanoid_arm'), 'frames')
         self._play_service = self.create_service(PlayArm, "arm/play", self._play_callback)
@@ -48,9 +48,6 @@ class HumanoidArmNode(Node):
         self._motors: Dict[int, MotorDataClass] = {}
         for i in range(14, 24):
             self._motors[i] = MotorDataClass(id=i, controller=moteus.Controller(id=i), target=np.zeros(3), feedback=np.zeros(3))
-        
-        self.add_on_set_parameters_callback(self._parameter_callback)
-        self._load_parameter()
         
         self._motor_feedback_publisher = self.create_publisher(MotorFeedback, "motor_feedback", rclpy.qos.QoSPresetProfiles.get_from_short_key("SENSOR_DATA"))
         self._motor_control_subscription = self.create_subscription(MotorControl, "motor_control", self._motor_control_callback, rclpy.qos.QoSPresetProfiles.get_from_short_key("SYSTEM_DEFAULT"))
@@ -80,39 +77,6 @@ class HumanoidArmNode(Node):
         self._teach_mode = request.data
         response.success = True
         return response
-    
-    def _load_parameter(self):
-        # load motor parameters
-        for param_name in self.get_parameters_by_prefix('motors'):
-            param = self.get_parameter(f'motors.{param_name}')
-            self.get_logger().info(f'Load parameter {param.name} = {param.value}')
-            motor_id = int(param.name.split('.')[1].split('_')[1])
-            if motor_id in self._motors:
-                if param.name.endswith('offset'):
-                    self._motors[motor_id].offset = param.value
-                if param.name.endswith('reverse'):
-                    self._motors[motor_id].reverse = param.value
-        
-        # set home position
-        try:
-            with open(os.path.join(self._frames_data_path, 'home.json'), 'r') as fp:
-                frame_dict = json.load(fp)
-        except RuntimeError:
-            pass
-        else:
-            for m in self._motors.values():
-                m.target[0] = frame_dict[str(m.id)]
-
-    def _parameter_callback(self, params: List[Parameter]) -> SetParametersResult:
-        for param in params:
-            if param.name.startswith('motors'):
-                motor_id = int(param.name.split('.')[1].split('_')[1])
-                if motor_id in self._motors:
-                    if param.name.endswith('offset'):
-                        self._motors[motor_id].offset = param.value
-                    if param.name.endswith('reverse'):
-                        self._motors[motor_id].reverse = param.value
-        return SetParametersResult(successful=True)
     
     def _get_frame_list_callback(self, request: GetArmFrameList.Request, response: GetArmFrameList.Response) -> GetArmFrameList.Response:
         response.frames = []
@@ -192,14 +156,12 @@ class HumanoidArmNode(Node):
                 self.get_logger().warning('Moteus send command timeout.')
             else:
                 for state in states:
-                    angle = state.values[moteus.Register.POSITION] * 2 * np.pi - self._motors[state.id].offset
-                    normalized_angle = math.atan2(math.sin(angle), math.cos(angle))
-                    self._motors[state.id].offset = state.values[moteus.Register.POSITION] * 2 * np.pi - normalized_angle
                     self._motors[state.id].initialized = True
                 if all([m.initialized for m in self._motors.values()]):
                     break
 
         # control loop
+        timeout_counter = 0
         while rclpy.ok():
             try:
                 # Send command
@@ -216,8 +178,13 @@ class HumanoidArmNode(Node):
                         for c in self._motors.values()
                     ]), 0.1)
             except asyncio.exceptions.TimeoutError:
-                self.get_logger().error('Moteus send command timeout.')
+                timeout_counter += 1
+                self.get_logger().warning(f'Moteus send command timeout {timeout_counter}.')
+                if timeout_counter > 10:
+                    self.get_logger().error('Moteus timeout too many times, exit.')
+                    break
             else:
+                timeout_counter = 0
                 for state in states:
                     # mapping motor position
                     position = state.values[moteus.Register.POSITION] * 2 * np.pi - self._motors[state.id].offset
