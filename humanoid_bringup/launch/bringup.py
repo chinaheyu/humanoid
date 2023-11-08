@@ -24,7 +24,9 @@ def generate_launch_description():
         Node(
             package='humanoid_chat',
             executable='humanoid_chat_node',
-            name='humanoid_chat'
+            name='humanoid_chat',
+            output='screen',
+            emulate_tty=True
         ),
         Node(
             package='humanoid_arm',

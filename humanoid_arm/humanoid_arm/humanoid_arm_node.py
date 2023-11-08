@@ -123,7 +123,7 @@ class HumanoidArmNode(Node):
     async def _detect_motor(self, motor: MotorDataClass) -> bool:
         s = moteus.Stream(motor.controller)
         try:
-            response = await asyncio.wait_for(s.command(b'conf get id.id', allow_any_response=True), 0.1)
+            response = await asyncio.wait_for(s.command(b'conf get id.id', allow_any_response=True), 0.2)
             if int(response.decode('utf-8')) == motor.id:
                 return True
         except (asyncio.exceptions.TimeoutError, ValueError):
@@ -151,7 +151,7 @@ class HumanoidArmNode(Node):
         # initialize motors
         while rclpy.ok():
             try:
-                states = await asyncio.wait_for(transport.cycle([c.controller.make_stop(query=True) for c in self._motors.values()]), 0.1)
+                states = await asyncio.wait_for(transport.cycle([c.controller.make_stop(query=True) for c in self._motors.values()]), 0.2)
             except asyncio.exceptions.TimeoutError:
                 self.get_logger().warning('Moteus send command timeout.')
             else:
@@ -166,8 +166,12 @@ class HumanoidArmNode(Node):
             try:
                 # Send command
                 if self._teach_mode:
-                    states = await asyncio.wait_for(transport.cycle([c.controller.make_brake(query=True) for c in self._motors.values()]), 0.1)
+                    states = await asyncio.wait_for(transport.cycle([c.controller.make_brake(query=True) for c in self._motors.values()]), 0.2)
                 else:
+                    # Check joint limit
+                    if any([abs(c.target[0]) > 1.9 for c in self._motors.values()]):
+                        self.get_logger().error(f'Some target of arm motors is greater than 1.9, ignored.')
+                        continue
                     states = await asyncio.wait_for(transport.cycle([
                         c.controller.make_position(
                             position=((-c.target[0] if c.reverse else c.target[0]) + c.offset) / (2 * np.pi),
@@ -176,7 +180,7 @@ class HumanoidArmNode(Node):
                             query=True
                         )
                         for c in self._motors.values()
-                    ]), 0.1)
+                    ]), 0.2)
             except asyncio.exceptions.TimeoutError:
                 timeout_counter += 1
                 self.get_logger().warning(f'Moteus send command timeout {timeout_counter}.')
@@ -190,6 +194,11 @@ class HumanoidArmNode(Node):
                     position = state.values[moteus.Register.POSITION] * 2 * np.pi - self._motors[state.id].offset
                     if self._motors[state.id].reverse:
                         position = -position
+                    
+                    # check feedback
+                    if abs(position) > 1.9 and not self._teach_mode :
+                        self.get_logger().error(f'Arm motor {state.id} feedback angle is {position}, greater than 1.9, ignored.')
+                        continue
                     
                     # update feedback
                     self._motors[state.id].feedback[0] = position

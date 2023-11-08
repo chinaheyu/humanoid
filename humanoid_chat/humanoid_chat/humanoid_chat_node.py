@@ -176,7 +176,7 @@ class HumanoidChatNode(Node):
         if request.data != self._chatting:
             if request.data:
                 self._chatting = True
-                self._chat_thread = threading.Thread(target=self._execute)
+                self._chat_thread = threading.Thread(target=self._main_loop)
                 self._chat_thread.start()
             else:
                 self._chatting = False
@@ -357,6 +357,16 @@ class HumanoidChatNode(Node):
         self._azure.text_to_speech('开始校准手臂电机，请让双臂自然下垂，完成校准后请对我说小琳。')
         self._detect_keyword()
         self._calibration_arm()
+        self._azure.wait_speech_synthesising()
+        
+        self._azure.text_to_speech('正在测试所有预设动作。')
+        self._nod_head(2)
+        self._shake_head(2)
+        self._draw_pitcure()
+        self._azure.wait_speech_synthesising()
+        
+        self._azure.text_to_speech('准备进入对话模式，确认后请对我说小琳。')
+        self._detect_keyword()
         self._azure.wait_speech_synthesising()
         
         self._azure.text_to_speech('大家好，我是华南理工大学开发的类人机器人，我的名字叫滑智琳，你可以对我说小琳。')
