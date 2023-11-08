@@ -2,11 +2,10 @@
 
 set -e
 
-ROS_DISTRO=foxy
 SCRIPTPATH=$(readlink -f "$0")
 TOP_DIR=$(dirname "$SCRIPTPATH")
 
-source /opt/ros/$ROS_DISTRO/setup.sh
+. /opt/ros/$ROS_DISTRO/setup.sh
 
 apt-get update
 apt-get install -y python3-pip
