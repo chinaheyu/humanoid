@@ -176,7 +176,7 @@ class HumanoidArmNode(Node):
                         c.controller.make_position(
                             position=((-c.target[0] if c.reverse else c.target[0]) + c.offset) / (2 * np.pi),
                             velocity=c.target[1] / (2 * np.pi),
-                            maximum_torque=8.0,
+                            maximum_torque=11.0,
                             query=True
                         )
                         for c in self._motors.values()

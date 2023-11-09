@@ -67,6 +67,7 @@ class SparkDesk:
         self._chat_history = []
         self._total_response = ""
         self._response_queue = queue.Queue()
+        self._chat_thread = None
 
     def _generate_params(self):
         data = {
@@ -133,13 +134,19 @@ class SparkDesk:
         return self._total_response
 
     def chat_stream(self, question, timeout=10.0):
-        chat_thread = threading.Thread(target=self.chat, args=[question])
-        chat_thread.start()
+        if self._chat_thread is not None:
+            if self._chat_thread.is_alive():
+                self._chat_thread.join()
+        while not self._response_queue.empty():
+            self._response_queue.get()
+            
+        self._chat_thread = threading.Thread(target=self.chat, args=[question])
+        self._chat_thread.start()
         while True:
             try:
                 response = self._response_queue.get(timeout=timeout)
             except queue.Empty:
-                chat_thread.join()
+                self._chat_thread.join()
                 self._chat_history.clear()
                 yield "非常抱歉，我还无法回答您的问题。"
                 break

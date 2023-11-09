@@ -64,10 +64,6 @@ class AzureSpeechService:
     def speech_to_text(self):
         while not self._speech_recognize_queue.empty():
             response = self._speech_recognize_queue.get()
-            if response is None:
-                break
-            yield response
-            return
         result = self._speech_recognizer.start_continuous_recognition_async()
         while True:
             try:
@@ -92,5 +88,5 @@ class AzureSpeechService:
         return False
 
     def stop_all(self):
-        self._keyword_recognizer.stop_recognition()
+        self._keyword_recognizer.stop_recognition_async().get()
         self._speech_synthesizer.stop_speaking()

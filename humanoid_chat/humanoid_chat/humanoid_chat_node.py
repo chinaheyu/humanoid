@@ -198,32 +198,50 @@ class HumanoidChatNode(Node):
         return None
 
     def _chat(self, question):
+        # allow keyword break chatting
+        keyword_detect_flag = False
+        def keyword_break_listener():
+            nonlocal keyword_detect_flag
+            if self._detect_keyword():
+                self.get_logger().info("Keyword detected, breaking chat.")
+                self._azure.stop_all()
+                keyword_detect_flag = True
+        keyword_detect_thread = threading.Thread(target=keyword_break_listener)
+        keyword_detect_thread.start()
+                    
         if (prev_response := self._serach_preset_answer(question)) is not None:
             # Using preset answer in database
             self.get_logger().info("Found preset answer in database.")
             print(prev_response)
             self._azure.text_to_speech(prev_response)
-            self._azure.wait_speech_synthesising()
         else:
             # Using LLM
             self.get_logger().info("Generating response from LLM.")
             prev_response = ""
             synthesis_ptr = 0
             for response in self._chat_model.chat_stream(question):
+                if keyword_detect_flag:
+                    break
                 # print stream response
                 print(response[len(prev_response):], end='', flush=True)
                 # synthesis
-                if not self._azure.is_speech_synthesising():
+                if (not keyword_detect_flag) and (not self._azure.is_speech_synthesising()):
                     sep_ptr = max(response.rfind(i) for i in [",", ";", ".", "?", "，", "；", "。", "？"])
                     if sep_ptr > synthesis_ptr:
                         self._azure.text_to_speech(response[synthesis_ptr:sep_ptr].replace('科大讯飞', '华南理工大学张智军教授').replace('讯飞星火认知大模型', '类人机器人'))
                         synthesis_ptr = sep_ptr
                 prev_response = response
             print()
-            if prev_response[synthesis_ptr:]:
+            if prev_response[synthesis_ptr:] and not keyword_detect_flag:
                 self._azure.text_to_speech(prev_response[synthesis_ptr:].replace('科大讯飞', '华南理工大学张智军教授').replace('讯飞星火认知大模型', '类人机器人'))
-            self._azure.wait_speech_synthesising()
-        return prev_response
+
+        while self._azure.is_speech_synthesising() and not keyword_detect_flag:
+            time.sleep(0.1)
+        self._azure.stop_all()
+        if keyword_detect_thread.is_alive():
+            keyword_detect_thread.join()
+        self._azure.wait_speech_synthesising()
+        return prev_response, keyword_detect_flag
 
     def _wave_hand(self):
         self._play_arm_sequence_client.wait_for_service()
@@ -236,19 +254,19 @@ class HumanoidChatNode(Node):
         for _ in range(times):
             msg = NeckControl()
             msg.pitch_velocity = 0.0
-            msg.yaw_angle = -0.23
+            msg.yaw_angle = -0.25
             msg.yaw_max_velocity = 3.14
             self._neck_control_publisher.publish(msg)
             time.sleep(0.7)
             msg = NeckControl()
             msg.pitch_velocity = 0.0
-            msg.yaw_angle = 0.8
+            msg.yaw_angle = 0.75
             msg.yaw_max_velocity = 3.14
             self._neck_control_publisher.publish(msg)
             time.sleep(0.7)
         msg = NeckControl()
         msg.pitch_velocity = 0.0
-        msg.yaw_angle = 0.33
+        msg.yaw_angle = 0.25
         msg.yaw_max_velocity = 3.14
         self._neck_control_publisher.publish(msg)
     
@@ -256,33 +274,33 @@ class HumanoidChatNode(Node):
         for _ in range(times):
             msg = NeckControl()
             msg.pitch_velocity = 0.3
-            msg.yaw_angle = 0.33
+            msg.yaw_angle = 0.25
             msg.yaw_max_velocity = 3.14
             self._neck_control_publisher.publish(msg)
             time.sleep(0.7)
             msg = NeckControl()
             msg.pitch_velocity = -0.3
-            msg.yaw_angle = 0.33
+            msg.yaw_angle = 0.25
             msg.yaw_max_velocity = 3.14
             self._neck_control_publisher.publish(msg)
             time.sleep(0.7)
         msg = NeckControl()
         msg.pitch_velocity = 0.3
-        msg.yaw_angle = 0.33
+        msg.yaw_angle = 0.25
         msg.yaw_max_velocity = 3.14
         self._neck_control_publisher.publish(msg)
         time.sleep(0.1)
         msg = NeckControl()
         msg.pitch_velocity = 0.0
-        msg.yaw_angle = 0.33
+        msg.yaw_angle = 0.25
         msg.yaw_max_velocity = 3.14
         self._neck_control_publisher.publish(msg)
     
     def _draw_pitcure(self):
         self._play_arm_sequence_client.wait_for_service()
         req = PlayArmSequence.Request()
-        req.duration = [2.0 for _ in range(9)]
-        req.frame_name = [f'draw{i}' for i in range(1, 10)]
+        req.duration = [2.0 for _ in range(8)]
+        req.frame_name = [f'draw{i}' for i in range(1, 9)]
         self._play_arm_sequence_client.call(req)
     
     def _fix_leg_motor(self):
@@ -299,10 +317,13 @@ class HumanoidChatNode(Node):
     
     def _detect_keyword(self):
         self.get_logger().info("Recognizing keyword.")
-        while not self._azure.recognize_keyword(os.path.join(self._package_path, "xl.table")):
+        if self._azure.recognize_keyword(os.path.join(self._package_path, "xl.table")):
+            self.get_logger().info("Keyword recognize success.")
+            return True
+        else:
             self.get_logger().error("Keyword recognize faliure.")
-        self.get_logger().info("Keyword recognize success.")
-    
+            return False
+
     def _calibration_arm(self):
         msg = Empty.Request()
         self._calibration_client.wait_for_service()
@@ -359,11 +380,22 @@ class HumanoidChatNode(Node):
         self._calibration_arm()
         self._azure.wait_speech_synthesising()
         
-        self._azure.text_to_speech('正在测试所有预设动作。')
+        self._azure.text_to_speech('正在测试所有预设动作，测试完成后请对我说小琳。')
         self._nod_head(2)
         self._shake_head(2)
-        self._draw_pitcure()
+        self._play_arm_sequence_client.wait_for_service()
+        req = PlayArmSequence.Request()
+        req.duration = [2.0, 2.0, 2.0, 2.0]
+        req.frame_name = ['draw1', 'draw2', 'draw3', 'draw4']
+        self._play_arm_sequence_client.call(req)
         self._azure.wait_speech_synthesising()
+        
+        self._detect_keyword()
+        self._play_arm_sequence_client.wait_for_service()
+        req = PlayArmSequence.Request()
+        req.duration = [2.0, 2.0, 2.0, 2.0]
+        req.frame_name = ['draw5', 'draw6', 'draw7', 'draw8']
+        self._play_arm_sequence_client.call(req)
         
         self._azure.text_to_speech('准备进入对话模式，确认后请对我说小琳。')
         self._detect_keyword()
@@ -373,12 +405,53 @@ class HumanoidChatNode(Node):
         time.sleep(0.5)
         self._wave_hand()
         self._azure.wait_speech_synthesising()
+        
+        # draw
+        self._play_arm_sequence_client.wait_for_service()
+        req = PlayArmSequence.Request()
+        req.duration = [2.0 for _ in range(8)]
+        req.frame_name = [f'draw{i}' for i in range(1, 9)]
+        result = self._play_arm_sequence_client.call_async(req)
+        
+        # head pos
+        msg = NeckControl()
+        msg.pitch_velocity = 0.0
+        msg.yaw_angle = -0.23
+        msg.yaw_max_velocity = 3.14
+        self._neck_control_publisher.publish(msg)
+        
+        # wake up
+        self._detect_keyword()
+        self._azure.text_to_speech('我在。')
+        self._azure.wait_speech_synthesising()
+        
+        # asr
+        self.get_logger().info("Speech recognizing.")
+        question = ""
+        for response in self._azure.speech_to_text():
+            print(response[len(question):], end="", flush=True)
+            question = response
+        print()
+        
+        # response
+        self._azure.text_to_speech('我在画画呀！')
+        self._azure.wait_speech_synthesising()
 
+        # reset head pos
+        msg = NeckControl()
+        msg.pitch_velocity = 0.0
+        msg.yaw_angle = 0.25
+        msg.yaw_max_velocity = 3.14
+        self._neck_control_publisher.publish(msg)
+
+        keyword_detect_flag = False
         while self._chatting:
             # Detect keyword
-            self._detect_keyword()
+            if not keyword_detect_flag:
+                self._detect_keyword()
             self._azure.text_to_speech('我在')
             self._azure.wait_speech_synthesising()
+            keyword_detect_flag = False
 
             # ASR
             self.get_logger().info("Speech recognizing.")
@@ -396,7 +469,7 @@ class HumanoidChatNode(Node):
                 answer = ""
             else:
                 self._gesture_on = True
-                answer = self._chat(question)
+                answer, keyword_detect_flag = self._chat(question)
                 self._gesture_on = False
             
             # Publish result
