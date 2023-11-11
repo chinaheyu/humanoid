@@ -235,8 +235,7 @@ class HumanoidChatNode(Node):
             if prev_response[synthesis_ptr:] and not keyword_detect_flag:
                 self._azure.text_to_speech(prev_response[synthesis_ptr:].replace('科大讯飞', '华南理工大学张智军教授').replace('讯飞星火认知大模型', '类人机器人'))
 
-        while self._azure.is_speech_synthesising() and not keyword_detect_flag:
-            time.sleep(0.1)
+        self._azure.wait_speech_synthesising()
         self._azure.stop_all()
         if keyword_detect_thread.is_alive():
             keyword_detect_thread.join()
@@ -289,7 +288,7 @@ class HumanoidChatNode(Node):
         msg.yaw_angle = 0.25
         msg.yaw_max_velocity = 3.14
         self._neck_control_publisher.publish(msg)
-        time.sleep(0.1)
+        time.sleep(0.2)
         msg = NeckControl()
         msg.pitch_velocity = 0.0
         msg.yaw_angle = 0.25
@@ -440,7 +439,7 @@ class HumanoidChatNode(Node):
         # reset head pos
         msg = NeckControl()
         msg.pitch_velocity = 0.0
-        msg.yaw_angle = 0.25
+        msg.yaw_angle = 0.45
         msg.yaw_max_velocity = 3.14
         self._neck_control_publisher.publish(msg)
 
