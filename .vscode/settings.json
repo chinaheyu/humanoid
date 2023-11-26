@@ -17,5 +17,7 @@
         "${workspaceFolder}/install/humanoid_arm/lib/python3.8/site-packages",
         "${workspaceFolder}/build/humanoid_interface",
         "${workspaceFolder}/install/humanoid_interface/lib/python3.8/site-packages",
-    ]
+    ],
+    "python.defaultInterpreterPath": "/bin/python3",
+    "clangd.path": "clangd-17"
 }
