@@ -360,13 +360,9 @@ class HumanoidChatNode(Node):
             self._azure.text_to_speech('好的。')
             self._azure.wait_speech_synthesising()
             self._nod_head(2)
-        elif action == '画':
-            self._azure.text_to_speech('好的。')
-            self._azure.wait_speech_synthesising()
-            self._draw_pitcure()
 
     def _detect_action_keywords(self, question):
-        for i in ['挥手', '握手', '摇头', '点头', '画']:
+        for i in ['挥手', '握手', '摇头', '点头']:
             if i in question:
                 return i
         return None
@@ -379,24 +375,26 @@ class HumanoidChatNode(Node):
         self._calibration_arm()
         self._azure.wait_speech_synthesising()
         
-        self._azure.text_to_speech('正在测试所有预设动作，测试完成后请对我说小琳。')
+        self._azure.text_to_speech('正在测试所有预设动作。')
         self._nod_head(2)
         self._shake_head(2)
-        self._play_arm_sequence_client.wait_for_service()
-        req = PlayArmSequence.Request()
-        req.duration = [2.0, 2.0, 2.0, 2.0]
-        req.frame_name = ['draw1', 'draw2', 'draw3', 'draw4']
-        self._play_arm_sequence_client.call(req)
+        # self._play_arm_sequence_client.wait_for_service()
+        # req = PlayArmSequence.Request()
+        # req.duration = [2.0, 2.0, 2.0, 2.0]
+        # req.frame_name = ['draw1', 'draw2', 'draw3', 'draw4']
+        # self._play_arm_sequence_client.call(req)
         self._azure.wait_speech_synthesising()
         
-        self._detect_keyword()
-        self._play_arm_sequence_client.wait_for_service()
-        req = PlayArmSequence.Request()
-        req.duration = [2.0, 2.0, 2.0, 2.0]
-        req.frame_name = ['draw5', 'draw6', 'draw7', 'draw8']
-        self._play_arm_sequence_client.call(req)
+        # self._azure.text_to_speech('请校准画板位置，完成校准后请对我说小琳。')
+        # self._detect_keyword()
+        # self._play_arm_sequence_client.wait_for_service()
+        # req = PlayArmSequence.Request()
+        # req.duration = [2.0, 2.0, 2.0, 2.0]
+        # req.frame_name = ['draw5', 'draw6', 'draw7', 'draw8']
+        # self._play_arm_sequence_client.call(req)
+        # self._azure.wait_speech_synthesising()
         
-        self._azure.text_to_speech('准备进入对话模式，确认后请对我说小琳。')
+        self._azure.text_to_speech('已完成所有准备任务，即将进入正式演示。确认后请对我说小琳。')
         self._detect_keyword()
         self._azure.wait_speech_synthesising()
         
@@ -406,42 +404,42 @@ class HumanoidChatNode(Node):
         self._azure.wait_speech_synthesising()
         
         # draw
-        self._play_arm_sequence_client.wait_for_service()
-        req = PlayArmSequence.Request()
-        req.duration = [2.0 for _ in range(8)]
-        req.frame_name = [f'draw{i}' for i in range(1, 9)]
-        result = self._play_arm_sequence_client.call_async(req)
+        # self._play_arm_sequence_client.wait_for_service()
+        # req = PlayArmSequence.Request()
+        # req.duration = [2.0 for _ in range(8)]
+        # req.frame_name = [f'draw{i}' for i in range(1, 9)]
+        # result = self._play_arm_sequence_client.call_async(req)
         
         # head pos
-        msg = NeckControl()
-        msg.pitch_velocity = 0.0
-        msg.yaw_angle = -0.23
-        msg.yaw_max_velocity = 3.14
-        self._neck_control_publisher.publish(msg)
+        # msg = NeckControl()
+        # msg.pitch_velocity = 0.0
+        # msg.yaw_angle = -0.23
+        # msg.yaw_max_velocity = 3.14
+        # self._neck_control_publisher.publish(msg)
         
         # wake up
-        self._detect_keyword()
-        self._azure.text_to_speech('我在。')
-        self._azure.wait_speech_synthesising()
+        # self._detect_keyword()
+        # self._azure.text_to_speech('我在。')
+        # self._azure.wait_speech_synthesising()
         
         # asr
-        self.get_logger().info("Speech recognizing.")
-        question = ""
-        for response in self._azure.speech_to_text():
-            print(response[len(question):], end="", flush=True)
-            question = response
-        print()
+        # self.get_logger().info("Speech recognizing.")
+        # question = ""
+        # for response in self._azure.speech_to_text():
+        #     print(response[len(question):], end="", flush=True)
+        #     question = response
+        # print()
         
         # response
-        self._azure.text_to_speech('我在画画呀！')
-        self._azure.wait_speech_synthesising()
+        # self._azure.text_to_speech('我在画画呀！')
+        # self._azure.wait_speech_synthesising()
 
         # reset head pos
-        msg = NeckControl()
-        msg.pitch_velocity = 0.0
-        msg.yaw_angle = 0.45
-        msg.yaw_max_velocity = 3.14
-        self._neck_control_publisher.publish(msg)
+        # msg = NeckControl()
+        # msg.pitch_velocity = 0.0
+        # msg.yaw_angle = 0.75
+        # msg.yaw_max_velocity = 3.14
+        # self._neck_control_publisher.publish(msg)
 
         keyword_detect_flag = False
         while self._chatting:

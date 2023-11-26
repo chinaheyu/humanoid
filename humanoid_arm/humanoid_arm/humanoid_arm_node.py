@@ -161,7 +161,12 @@ class HumanoidArmNode(Node):
                     ), 0.2)
                 ]
             except asyncio.exceptions.TimeoutError:
-                self.get_logger().warning('Moteus send command timeout.')
+                try:
+                    offline_set = set([i for i in range(14, 24)]) - set([i.id for i in chain(*states)])
+                    self.get_logger().warning(f'Moteus send command timeout, offline: {offline_set}.')
+                except NameError:
+                    self.get_logger().warning(f'Moteus send command timeout.')
+                await asyncio.sleep(0.5)
             else:
                 for state in chain(*states):
                     self._motors[state.id].initialized = True
@@ -187,12 +192,19 @@ class HumanoidArmNode(Node):
                     if any([abs(c.target[0]) > 1.9 for c in self._motors.values()]):
                         self.get_logger().error(f'Some target of arm motors is greater than 1.9, ignored.')
                         continue
+
+                    # Check velocity limit
+                    for c in self._motors.values():
+                        if abs(c.target[1]) > 3.2:
+                            self.get_logger().error(f'Some velocity of arm motors is greater than 3.2, ignored.')
+                            c.target[1] = 0.0
+
                     states = [
                         await asyncio.wait_for(self._transport_left.cycle([
                                 self._motors[i].controller.make_position(
                                     position=((-self._motors[i].target[0] if self._motors[i].reverse else self._motors[i].target[0]) + self._motors[i].offset) / (2 * np.pi),
-                                    velocity=self._motors[i].target[1] / (2 * np.pi),
-                                    maximum_torque=11.0,
+                                    velocity=0.0,
+                                    maximum_torque=8.0,
                                     query=True
                                 )
                                 for i in range(14, 19)
@@ -201,8 +213,8 @@ class HumanoidArmNode(Node):
                         await asyncio.wait_for(self._transport_right.cycle([
                                 self._motors[i].controller.make_position(
                                     position=((-self._motors[i].target[0] if self._motors[i].reverse else self._motors[i].target[0]) + self._motors[i].offset) / (2 * np.pi),
-                                    velocity=self._motors[i].target[1] / (2 * np.pi),
-                                    maximum_torque=11.0,
+                                    velocity=0.0,
+                                    maximum_torque=8.0,
                                     query=True
                                 )
                                 for i in range(19, 24)
