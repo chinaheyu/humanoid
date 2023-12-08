@@ -116,7 +116,7 @@ class HumanoidArmNode(Node):
     
     async def _detect_motor(self, motor: MotorDataClass) -> bool:
         try:
-            await asyncio.wait_for(motor.controller.set_stop(), 0.2)
+            await asyncio.wait_for(motor.controller.set_stop(), 1.0)
         except (asyncio.exceptions.TimeoutError, ValueError):
             return False
         return True
@@ -130,7 +130,7 @@ class HumanoidArmNode(Node):
         self._node_initialize()
         
         # Create transport
-        self._transport_left = moteus.Fdcanusb('/dev/serial/by-id/usb-mjbots_fdcanusb_FFD4048A-if00')
+        self._transport_left = moteus.Fdcanusb('/dev/serial/by-id/usb-mjbots_fdcanusb_826543DB-if00')
         self._transport_right = moteus.Fdcanusb('/dev/serial/by-id/usb-mjbots_fdcanusb_1EB12734-if00')
 
         # create motors
@@ -152,14 +152,14 @@ class HumanoidArmNode(Node):
         # initialize motors
         while rclpy.ok():
             try:
-                states = [
-                    await asyncio.wait_for(self._transport_left.cycle(
+                states = await asyncio.gather(
+                    asyncio.wait_for(self._transport_left.cycle(
                         [self._motors[i].controller.make_stop(query=True) for i in range(14, 19)]
                     ), 0.2),
-                    await asyncio.wait_for(self._transport_right.cycle(
+                    asyncio.wait_for(self._transport_right.cycle(
                         [self._motors[i].controller.make_stop(query=True) for i in range(19, 24)]
                     ), 0.2)
-                ]
+                )
             except asyncio.exceptions.TimeoutError:
                 try:
                     offline_set = set([i for i in range(14, 24)]) - set([i.id for i in chain(*states)])
@@ -179,14 +179,14 @@ class HumanoidArmNode(Node):
             try:
                 # Send command
                 if self._teach_mode:
-                    states = [
-                        await asyncio.wait_for(self._transport_left.cycle(
+                    states = await asyncio.gather(
+                        asyncio.wait_for(self._transport_left.cycle(
                             [self._motors[i].controller.make_brake(query=True) for i in range(14, 19)]
                         ), 0.2),
-                        await asyncio.wait_for(self._transport_right.cycle(
+                        asyncio.wait_for(self._transport_right.cycle(
                             [self._motors[i].controller.make_brake(query=True) for i in range(19, 24)]
                         ), 0.2)
-                    ]
+                    )
                 else:
                     # Check joint limit
                     if any([abs(c.target[0]) > 1.9 for c in self._motors.values()]):
@@ -199,8 +199,8 @@ class HumanoidArmNode(Node):
                             self.get_logger().error(f'Some velocity of arm motors is greater than 3.2, ignored.')
                             c.target[1] = 0.0
 
-                    states = [
-                        await asyncio.wait_for(self._transport_left.cycle([
+                    states = await asyncio.gather(
+                        asyncio.wait_for(self._transport_left.cycle([
                                 self._motors[i].controller.make_position(
                                     position=((-self._motors[i].target[0] if self._motors[i].reverse else self._motors[i].target[0]) + self._motors[i].offset) / (2 * np.pi),
                                     velocity=0.0,
@@ -210,7 +210,7 @@ class HumanoidArmNode(Node):
                                 for i in range(14, 19)
                             ]
                         ), 0.2),
-                        await asyncio.wait_for(self._transport_right.cycle([
+                        asyncio.wait_for(self._transport_right.cycle([
                                 self._motors[i].controller.make_position(
                                     position=((-self._motors[i].target[0] if self._motors[i].reverse else self._motors[i].target[0]) + self._motors[i].offset) / (2 * np.pi),
                                     velocity=0.0,
@@ -220,7 +220,7 @@ class HumanoidArmNode(Node):
                                 for i in range(19, 24)
                             ]
                         ), 0.2)
-                    ]
+                    )
             except asyncio.exceptions.TimeoutError:
                 timeout_counter += 1
                 self.get_logger().warning(f'Moteus send command timeout {timeout_counter}.')
@@ -254,9 +254,6 @@ class HumanoidArmNode(Node):
                             torque=state.values[moteus.Register.TORQUE]
                         )
                     )
-
-            # wait for 20ms
-            await asyncio.sleep(0.02)
 
         # Stop motors
         await self._transport_left.cycle(

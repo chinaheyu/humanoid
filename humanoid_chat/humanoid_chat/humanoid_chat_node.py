@@ -26,7 +26,8 @@ class HumanoidChatNode(Node):
             os.environ.get('AZURE_SPEECH_KEY'),
             os.environ.get('AZURE_SPEECH_REGION'),
             microphone_device="sysdefault:CARD=DELI14870",
-            speaker_device="sysdefault:CARD=DELI14870"
+            speaker_device="sysdefault:CARD=DELI14870",
+            voice_style='affectionate'
         )
         self._viseme_queue = queue.Queue()
         self._viseme_thread = threading.Thread(target=self._viseme_thread_callback)
@@ -39,6 +40,9 @@ class HumanoidChatNode(Node):
             os.environ.get('IFLYTEK_APP_KEY'),
             os.environ.get('IFLYTEK_APP_SECRET')
         )
+        
+        # random gesture for chatting
+        self._gesture_list = ['talk1', 'talk2', 'talk3', 'talk4']
         
         # Chatting state
         self._chatting = True
@@ -54,13 +58,16 @@ class HumanoidChatNode(Node):
         self._calibration_client = self.create_client(Empty, "arm/calibration")
         self._neck_control_publisher = self.create_publisher(NeckControl, "neck_control", rclpy.qos.QoSPresetProfiles.get_from_short_key("SYSTEM_DEFAULT"))
         
-        # head feedback
-        self._head_feedback_msg = HeadFeedback()
-        self._head_feedback_subscriber = self.create_subscription(HeadFeedback, "head_feedback", self._head_feedback_callback, rclpy.qos.QoSPresetProfiles.get_from_short_key("SENSOR_DATA"))
+        # face control msg
+        self._face_control_msg = FaceControl()
         
         # blink timer
-        self._blink_thread = None
-        self._blink_timer = self.create_timer(5.0, self._blink_timer_callback)
+        self._blink_thread = threading.Thread(target=self._blink_thread_callback)
+        self._blink_thread.start()
+        
+        # move eye thread
+        self._move_eye_thread = threading.Thread(target=self._move_eye_thread_callback)
+        self._move_eye_thread.start()
         
         # gesture thread
         self._gesture_on = False
@@ -72,7 +79,6 @@ class HumanoidChatNode(Node):
         self._chat_thread.start()
         
     def _gesture_thread_callback(self):
-        gesture_list = ['talk1', 'talk2', 'talk3', 'talk4']
         running_gesture = False
         current_gesture = None
         while rclpy.ok():
@@ -89,38 +95,65 @@ class HumanoidChatNode(Node):
             if running_gesture:
                 msg = PlayArmSequence.Request()
                 msg.duration = [2.0]
-                while (random_gesture := random.choice(gesture_list)) == current_gesture:
-                    random_gesture = random.choice(gesture_list)
+                while (random_gesture := random.choice(self._gesture_list)) == current_gesture:
+                    random_gesture = random.choice(self._gesture_list)
                 msg.frame_name = [random_gesture]
                 self._play_arm_sequence_client.wait_for_service()
                 self._play_arm_sequence_client.call(msg)
             time.sleep(1.0)
-
-    def _head_feedback_callback(self, msg: HeadFeedback):
-        self._head_feedback_msg = msg
+    
+    def _test_random_gesture(self):
+        self._play_arm_sequence_client.wait_for_service()
+        req = PlayArmSequence.Request()
+        req.duration = [2.0 for _ in range(8)]
+        req.frame_name = [*self._gesture_list, 'home']
+        self._play_arm_sequence_client.call(req)
+    
+    def _move_eye_thread_callback(self):
+        while rclpy.ok():
+            # wait
+            time.sleep(30.0)
+            # eye left
+            for i in range(1500, 1100, -10):
+                self._face_control_msg.pulse_width[FaceControl.SERVO_EYES_LEFT_RIGHT] = i
+                self._face_control_publisher.publish(self._face_control_msg)
+                time.sleep(0.02)
+            # wait
+            time.sleep(4.0)
+            # eye center
+            for i in range(1100, 1500, 10):
+                self._face_control_msg.pulse_width[FaceControl.SERVO_EYES_LEFT_RIGHT] = i
+                self._face_control_publisher.publish(self._face_control_msg)
+                time.sleep(0.02)
+            # wait
+            time.sleep(4.0)
+            # eye right
+            for i in range(1500, 1900, 10):
+                self._face_control_msg.pulse_width[FaceControl.SERVO_EYES_LEFT_RIGHT] = i
+                self._face_control_publisher.publish(self._face_control_msg)
+                time.sleep(0.02)
+            # wait
+            time.sleep(4.0)
+            # eye center
+            for i in range(1900, 1500, -10):
+                self._face_control_msg.pulse_width[FaceControl.SERVO_EYES_LEFT_RIGHT] = i
+                self._face_control_publisher.publish(self._face_control_msg)
+                time.sleep(0.02)
 
     def _blink_thread_callback(self):
-        msg = FaceControl()
-        # eyelid down
-        msg.pulse_width = self._head_feedback_msg.pulse_width
-        msg.pulse_width[FaceControl.SERVO_LEFT_EYELID_UP_DOWN] = 905
-        msg.pulse_width[FaceControl.SERVO_RIGHT_EYELID_UP_DOWN] = 2088
-        self._face_control_publisher.publish(msg)
-        # wait
-        time.sleep(0.1)
-        # eyelid open
-        msg.pulse_width = self._head_feedback_msg.pulse_width
-        msg.pulse_width[FaceControl.SERVO_LEFT_EYELID_UP_DOWN] = 1500
-        msg.pulse_width[FaceControl.SERVO_RIGHT_EYELID_UP_DOWN] = 1500
-        self._face_control_publisher.publish(msg)
-
-    def _blink_timer_callback(self):
-        # wait previous thread finish
-        if self._blink_thread is not None:
-            self._blink_thread.join()
-        # start new thread
-        self._blink_thread = threading.Thread(target=self._blink_thread_callback)
-        self._blink_thread.start()
+        while rclpy.ok():
+            # wait
+            time.sleep(5.0)
+            # eyelid down
+            self._face_control_msg.pulse_width[FaceControl.SERVO_LEFT_EYELID_UP_DOWN] = 905
+            self._face_control_msg.pulse_width[FaceControl.SERVO_RIGHT_EYELID_UP_DOWN] = 2088
+            self._face_control_publisher.publish(self._face_control_msg)
+            # wait
+            time.sleep(0.1)
+            # eyelid open
+            self._face_control_msg.pulse_width[FaceControl.SERVO_LEFT_EYELID_UP_DOWN] = 1500
+            self._face_control_msg.pulse_width[FaceControl.SERVO_RIGHT_EYELID_UP_DOWN] = 1500
+            self._face_control_publisher.publish(self._face_control_msg)
 
     def _speak_callback(self, request: Speak.Request, response: Speak.Response):
         if self._azure.is_speech_synthesising():
@@ -164,10 +197,8 @@ class HumanoidChatNode(Node):
                 time.sleep(timestamp - current_time)
             current_time = timestamp
             if viseme_id in viseme_to_chin:
-                msg = FaceControl()
-                msg.pulse_width = self._head_feedback_msg.pulse_width
-                msg.pulse_width[FaceControl.SERVO_CHIN_UP_DOWN] = viseme_to_chin[viseme_id]
-                self._face_control_publisher.publish(msg)
+                self._face_control_msg.pulse_width[FaceControl.SERVO_CHIN_UP_DOWN] = viseme_to_chin[viseme_id]
+                self._face_control_publisher.publish(self._face_control_msg)
 
     def _viseme_callback(self, timestamp, viseme_id):
         self._viseme_queue.put((timestamp, viseme_id))
@@ -204,11 +235,11 @@ class HumanoidChatNode(Node):
             nonlocal keyword_detect_flag
             if self._detect_keyword():
                 self.get_logger().info("Keyword detected, breaking chat.")
-                self._azure.stop_all()
                 keyword_detect_flag = True
+                self._azure.stop_all()
         keyword_detect_thread = threading.Thread(target=keyword_break_listener)
         keyword_detect_thread.start()
-                    
+
         if (prev_response := self._serach_preset_answer(question)) is not None:
             # Using preset answer in database
             self.get_logger().info("Found preset answer in database.")
@@ -253,19 +284,19 @@ class HumanoidChatNode(Node):
         for _ in range(times):
             msg = NeckControl()
             msg.pitch_velocity = 0.0
-            msg.yaw_angle = -0.25
+            msg.yaw_angle = -0.35
             msg.yaw_max_velocity = 3.14
             self._neck_control_publisher.publish(msg)
             time.sleep(0.7)
             msg = NeckControl()
             msg.pitch_velocity = 0.0
-            msg.yaw_angle = 0.75
+            msg.yaw_angle = 0.65
             msg.yaw_max_velocity = 3.14
             self._neck_control_publisher.publish(msg)
             time.sleep(0.7)
         msg = NeckControl()
         msg.pitch_velocity = 0.0
-        msg.yaw_angle = 0.25
+        msg.yaw_angle = 0.15
         msg.yaw_max_velocity = 3.14
         self._neck_control_publisher.publish(msg)
     
@@ -322,6 +353,12 @@ class HumanoidChatNode(Node):
         else:
             self.get_logger().error("Keyword recognize faliure.")
             return False
+    
+    def _enter_teach_mode(self):
+        msg = SetBool.Request()
+        msg.data = True
+        self._teach_mode_client.wait_for_service()
+        self._teach_mode_client.call(msg)
 
     def _calibration_arm(self):
         msg = Empty.Request()
@@ -369,6 +406,7 @@ class HumanoidChatNode(Node):
 
     def _main_loop(self):
         self._fix_leg_motor()
+        self._enter_teach_mode()
         
         self._azure.text_to_speech('开始校准手臂电机，请让双臂自然下垂，完成校准后请对我说小琳。')
         self._detect_keyword()
@@ -378,21 +416,11 @@ class HumanoidChatNode(Node):
         self._azure.text_to_speech('正在测试所有预设动作。')
         self._nod_head(2)
         self._shake_head(2)
-        # self._play_arm_sequence_client.wait_for_service()
-        # req = PlayArmSequence.Request()
-        # req.duration = [2.0, 2.0, 2.0, 2.0]
-        # req.frame_name = ['draw1', 'draw2', 'draw3', 'draw4']
-        # self._play_arm_sequence_client.call(req)
+        self._shake_hand()
+        self._wave_hand()
+        self._draw_pitcure()
+        self._test_random_gesture()
         self._azure.wait_speech_synthesising()
-        
-        # self._azure.text_to_speech('请校准画板位置，完成校准后请对我说小琳。')
-        # self._detect_keyword()
-        # self._play_arm_sequence_client.wait_for_service()
-        # req = PlayArmSequence.Request()
-        # req.duration = [2.0, 2.0, 2.0, 2.0]
-        # req.frame_name = ['draw5', 'draw6', 'draw7', 'draw8']
-        # self._play_arm_sequence_client.call(req)
-        # self._azure.wait_speech_synthesising()
         
         self._azure.text_to_speech('已完成所有准备任务，即将进入正式演示。确认后请对我说小琳。')
         self._detect_keyword()
@@ -402,44 +430,6 @@ class HumanoidChatNode(Node):
         time.sleep(0.5)
         self._wave_hand()
         self._azure.wait_speech_synthesising()
-        
-        # draw
-        # self._play_arm_sequence_client.wait_for_service()
-        # req = PlayArmSequence.Request()
-        # req.duration = [2.0 for _ in range(8)]
-        # req.frame_name = [f'draw{i}' for i in range(1, 9)]
-        # result = self._play_arm_sequence_client.call_async(req)
-        
-        # head pos
-        # msg = NeckControl()
-        # msg.pitch_velocity = 0.0
-        # msg.yaw_angle = -0.23
-        # msg.yaw_max_velocity = 3.14
-        # self._neck_control_publisher.publish(msg)
-        
-        # wake up
-        # self._detect_keyword()
-        # self._azure.text_to_speech('我在。')
-        # self._azure.wait_speech_synthesising()
-        
-        # asr
-        # self.get_logger().info("Speech recognizing.")
-        # question = ""
-        # for response in self._azure.speech_to_text():
-        #     print(response[len(question):], end="", flush=True)
-        #     question = response
-        # print()
-        
-        # response
-        # self._azure.text_to_speech('我在画画呀！')
-        # self._azure.wait_speech_synthesising()
-
-        # reset head pos
-        # msg = NeckControl()
-        # msg.pitch_velocity = 0.0
-        # msg.yaw_angle = 0.75
-        # msg.yaw_max_velocity = 3.14
-        # self._neck_control_publisher.publish(msg)
 
         keyword_detect_flag = False
         while self._chatting:

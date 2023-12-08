@@ -4,7 +4,7 @@ import time
 
 
 class AzureSpeechService:
-    def __init__(self, key, region, recognition_language='zh-CN', voice_name='zh-CN-XiaoxiaoNeural', microphone_device=None, speaker_device=None):
+    def __init__(self, key, region, recognition_language='zh-CN', voice_name='zh-CN-XiaoxiaoNeural', microphone_device=None, speaker_device=None, voice_style=None):
         # init speech recognizer
         speech_config = speechsdk.SpeechConfig(subscription=key, region=region)
         speech_config.speech_recognition_language = recognition_language
@@ -20,6 +20,8 @@ class AzureSpeechService:
         speech_config = speechsdk.SpeechConfig(subscription=key, region=region)
         audio_config = speechsdk.audio.AudioOutputConfig(use_default_speaker=speaker_device is None, device_name=speaker_device)
         speech_config.speech_synthesis_voice_name = voice_name
+        self._voice_name = voice_name
+        self._voice_style = voice_style
         self._speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_config)
         self._speech_synthesizer.synthesis_completed.connect(self._synthesis_stop)
         self._speech_synthesizer.synthesis_canceled.connect(self._synthesis_stop)
@@ -77,7 +79,12 @@ class AzureSpeechService:
     def text_to_speech(self, text):
         self._speech_synthesising = True
         self.wait_speech_synthesising()
-        self._speech_synthesis_result = self._speech_synthesizer.speak_text_async(text)
+        
+        if self._voice_style is None:
+            self._speech_synthesis_result = self._speech_synthesizer.speak_text_async(text)
+        else:
+            ssml = '<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="zh-CN"><voice name="{}"><mstts:express-as style="{}">{}</mstts:express-as></voice></speak>'.format(self._voice_name, self._voice_style, text)
+            self._speech_synthesis_result = self._speech_synthesizer.speak_ssml_async(ssml)
     
     def recognize_keyword(self, model):
         result = self._keyword_recognizer.recognize_once_async(
