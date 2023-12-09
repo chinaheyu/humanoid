@@ -124,11 +124,8 @@ class HumanoidArmNode(Node):
     def _motor_control_callback(self, msg: MotorControl) -> None:
         if msg.id in self._motors and msg.control_type == MotorControl.MOTOR_POSITION_CONTROL:
             self._motors[msg.id].target[0] = msg.position
-
-    async def _control_loop(self) -> None:
-        # ros node initialize
-        self._node_initialize()
-        
+    
+    async def _initialize_transport_and_motors(self) -> None:
         # Create transport
         self._transport_left = moteus.Fdcanusb('/dev/serial/by-id/usb-mjbots_fdcanusb_826543DB-if00')
         self._transport_right = moteus.Fdcanusb('/dev/serial/by-id/usb-mjbots_fdcanusb_1EB12734-if00')
@@ -139,7 +136,14 @@ class HumanoidArmNode(Node):
             self._motors[i] = MotorDataClass(id=i, controller=moteus.Controller(id=i, transport=self._transport_left), target=np.zeros(3), feedback=np.zeros(3))
         for i in range(19, 24):
             self._motors[i] = MotorDataClass(id=i, controller=moteus.Controller(id=i, transport=self._transport_right), target=np.zeros(3), feedback=np.zeros(3))
+
+    async def _control_loop(self) -> None:
+        # initialize transport and motors
+        await self._initialize_transport_and_motors()
         
+        # ros node initialize
+        self._node_initialize()
+
         # Wait motors online
         while rclpy.ok():
             offline_motors = [m.id for m in self._motors.values() if await self._detect_motor(m) == False]
