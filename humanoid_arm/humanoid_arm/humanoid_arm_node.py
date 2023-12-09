@@ -99,7 +99,7 @@ class HumanoidArmNode(Node):
             p = traj.plan(t)
             for i in range(len(motor_id)):
                 self._motors[motor_id[i]].target = p[:, i]
-            time.sleep(0.02)
+            time.sleep(0.01)
         return True
 
     def _play_sequence_callback(self, request: PlayArmSequence.Request, response: PlayArmSequence.Response) -> PlayArmSequence.Response:
@@ -121,7 +121,7 @@ class HumanoidArmNode(Node):
             p = traj.plan(t)
             for i in range(len(motor_id)):
                 self._motors[motor_id[i]].target = p[:, i]
-            time.sleep(0.02)
+            time.sleep(0.01)
         response.result = True
         return response
     

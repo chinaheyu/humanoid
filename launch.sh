@@ -132,5 +132,5 @@ WORKSPACE_DIR=$(find_workspace_directory)
 
 # launch ros2 packages
 source "${WORKSPACE_DIR}/install/setup.bash"
-ros2 launch humanoid_bringup bringup.py
-# ros2 launch humanoid_bringup bringup_without_chat.py
+# ros2 launch humanoid_bringup bringup.py
+ros2 launch humanoid_bringup bringup_without_chat.py
