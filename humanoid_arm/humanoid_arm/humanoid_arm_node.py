@@ -13,7 +13,7 @@ from humanoid_interface.srv import PlayArm, GetArmFrameList, TeachArm, PlayArmSe
 from std_srvs.srv import SetBool, Empty
 from ament_index_python.packages import get_package_share_directory
 import os
-from .joint_trajectory_planner import FifthOrderTrajectory
+from .joint_trajectory_planner import MINCOTrajectory, FifthOrderTrajectory
 import numpy as np
 import json
 import time
@@ -103,10 +103,25 @@ class HumanoidArmNode(Node):
         return True
 
     def _play_sequence_callback(self, request: PlayArmSequence.Request, response: PlayArmSequence.Response) -> PlayArmSequence.Response:
+        motor_id = list(self._motors.keys())
+        X = [np.vstack([self._motors[i].feedback[0] for i in motor_id])]
+        T = []
         for frame_name, duration in zip(request.frame_name, request.duration):
-            if not self._play_to_frame(frame_name, duration):
+            try:
+                with open(os.path.join(self._frames_data_path, f'{frame_name}.json'), 'r') as fp:
+                    frame_dict = json.load(fp)
+            except RuntimeError:
                 response.result = False
                 return response
+            X.append(np.vstack([frame_dict[str(i)] for i in motor_id]))
+            T.append(duration)
+        traj = MINCOTrajectory(np.hstack(X), np.array(T))
+        st = time.time()
+        while (t := (time.time() - st)) < np.sum(T):
+            p = traj.plan(t)
+            for i in range(len(motor_id)):
+                self._motors[motor_id[i]].target = p[:, i]
+            time.sleep(0.02)
         response.result = True
         return response
     
@@ -193,15 +208,9 @@ class HumanoidArmNode(Node):
                     )
                 else:
                     # Check joint limit
-                    if any([abs(c.target[0]) > 1.9 for c in self._motors.values()]):
-                        self.get_logger().error(f'Some target of arm motors is greater than 1.9, ignored.')
+                    if any([abs(c.target[0]) > 3.0 for c in self._motors.values()]):
+                        self.get_logger().error(f'Some target of arm motors is greater than 3.0, ignored.')
                         continue
-
-                    # Check velocity limit
-                    for c in self._motors.values():
-                        if abs(c.target[1]) > 3.2:
-                            self.get_logger().error(f'Some velocity of arm motors is greater than 3.2, ignored.')
-                            c.target[1] = 0.0
 
                     states = await asyncio.gather(
                         asyncio.wait_for(self._transport_left.cycle([
@@ -238,11 +247,6 @@ class HumanoidArmNode(Node):
                     position = state.values[moteus.Register.POSITION] * 2 * np.pi - self._motors[state.id].offset
                     if self._motors[state.id].reverse:
                         position = -position
-                    
-                    # check feedback
-                    if abs(position) > 1.9 and not self._teach_mode :
-                        self.get_logger().error(f'Arm motor {state.id} feedback angle is {position}, greater than 1.9, ignored.')
-                        continue
                     
                     # update feedback
                     self._motors[state.id].feedback[0] = position
