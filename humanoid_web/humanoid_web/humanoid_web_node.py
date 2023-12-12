@@ -9,7 +9,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from .api_types import *
 from humanoid_interface.msg import MotorControl, MotorFeedback, FaceControl, NeckControl, HeadFeedback
-from humanoid_interface.srv import PlayArm, GetArmFrameList
+from humanoid_interface.srv import PlayArm, GetArmFrameList, TeachArm
+from std_srvs.srv import SetBool, Empty
 
 class HumanoidWebNode(Node):
     face_components = [
@@ -48,12 +49,38 @@ class HumanoidWebNode(Node):
         # Create ros service client
         self._play_arm_client = self.create_client(PlayArm, "arm/play")
         self._get_frame_list_client = self.create_client(GetArmFrameList, "arm/get_frame_list")
+        self._teach_mode_client = self.create_client(SetBool, "arm/teach_mode")
+        self._calibration_client = self.create_client(Empty, "arm/calibration")
+        self._teach_arm_client = self.create_client(TeachArm, "arm/teach")
     
     def _motor_feedback_callback(self, msg: MotorFeedback) -> None:
         self.motor_feedback[msg.id] = msg
     
     def _head_feedback_callback(self, msg: HeadFeedback) -> None:
         self.head_feedback = msg
+    
+    def teach_arm(self, frame_name: str) -> bool:
+        request = TeachArm.Request()
+        request.frame_name = frame_name
+        if not self._teach_arm_client.wait_for_service(timeout_sec=1.0):
+            return False
+        response = self._teach_arm_client.call(request)
+        return response.result
+    
+    def teach_mode(self, enable: bool) -> bool:
+        request = SetBool.Request()
+        request.data = enable
+        if not self._teach_mode_client.wait_for_service(timeout_sec=1.0):
+            return False
+        response = self._teach_mode_client.call(request)
+        return response.success
+    
+    def calibration_arm(self) -> None:
+        request = Empty.Request()
+        if not self._calibration_client.wait_for_service(timeout_sec=1.0):
+            return False
+        self._calibration_client.call(request)
+        return True
     
     def control_motor(self, msg: MotorControl):
         self._motor_control_publisher.publish(msg)
@@ -185,6 +212,33 @@ def arm_play_to_frame(command: ApiPlayArmRequest):
 def get_arm_frames() -> ApiGetArmFramesResponse:
     response = ApiGetArmFramesResponse(frames=humanoid_web_node.get_arm_frame_list())
     return response
+
+
+@app.put("/arm/teach_mode")
+def set_arm_teach_mode(command: ApiSetArmTeachModeRequest):
+    result = humanoid_web_node.teach_mode(command.enable)
+    if result:
+        return {"message": "Success"}
+    else:
+        raise HTTPException(status_code=404)
+
+
+@app.get("/arm/calibration")
+def arm_calibration():
+    result = humanoid_web_node.calibration_arm()
+    if result:
+        return {"message": "Success"}
+    else:
+        raise HTTPException(status_code=404)
+
+
+@app.post("/arm/teach")
+def teach_arm(command: ApiArmTeachRequest):
+    result = humanoid_web_node.teach_arm(command.frame_name)
+    if result:
+        return {"message": "Success"}
+    else:
+        raise HTTPException(status_code=404)
 
 
 def main(args=None):

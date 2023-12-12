@@ -11,6 +11,7 @@ from .iflytek_spark import SparkDesk
 import time
 import queue
 import random
+import math
 
 
 class HumanoidChatNode(Node):
@@ -66,6 +67,7 @@ class HumanoidChatNode(Node):
         self._blink_thread.start()
         
         # move eye thread
+        self._eye_mutex = threading.Lock()
         self._move_eye_thread = threading.Thread(target=self._move_eye_thread_callback)
         self._move_eye_thread.start()
         
@@ -113,32 +115,34 @@ class HumanoidChatNode(Node):
         while rclpy.ok():
             # wait
             time.sleep(30.0)
-            # eye left
-            for i in range(1500, 1100, -10):
-                self._face_control_msg.pulse_width[FaceControl.SERVO_EYES_LEFT_RIGHT] = i
-                self._face_control_publisher.publish(self._face_control_msg)
-                time.sleep(0.02)
-            # wait
-            time.sleep(4.0)
-            # eye center
-            for i in range(1100, 1500, 10):
-                self._face_control_msg.pulse_width[FaceControl.SERVO_EYES_LEFT_RIGHT] = i
-                self._face_control_publisher.publish(self._face_control_msg)
-                time.sleep(0.02)
-            # wait
-            time.sleep(4.0)
-            # eye right
-            for i in range(1500, 1900, 10):
-                self._face_control_msg.pulse_width[FaceControl.SERVO_EYES_LEFT_RIGHT] = i
-                self._face_control_publisher.publish(self._face_control_msg)
-                time.sleep(0.02)
-            # wait
-            time.sleep(4.0)
-            # eye center
-            for i in range(1900, 1500, -10):
-                self._face_control_msg.pulse_width[FaceControl.SERVO_EYES_LEFT_RIGHT] = i
-                self._face_control_publisher.publish(self._face_control_msg)
-                time.sleep(0.02)
+            if self._eye_mutex.acquire(blocking=False):
+                # eye left
+                for i in range(1500, 1100, -10):
+                    self._face_control_msg.pulse_width[FaceControl.SERVO_EYES_LEFT_RIGHT] = i
+                    self._face_control_publisher.publish(self._face_control_msg)
+                    time.sleep(0.02)
+                # wait
+                time.sleep(4.0)
+                # eye center
+                for i in range(1100, 1500, 10):
+                    self._face_control_msg.pulse_width[FaceControl.SERVO_EYES_LEFT_RIGHT] = i
+                    self._face_control_publisher.publish(self._face_control_msg)
+                    time.sleep(0.02)
+                # wait
+                time.sleep(4.0)
+                # eye right
+                for i in range(1500, 1900, 10):
+                    self._face_control_msg.pulse_width[FaceControl.SERVO_EYES_LEFT_RIGHT] = i
+                    self._face_control_publisher.publish(self._face_control_msg)
+                    time.sleep(0.02)
+                # wait
+                time.sleep(4.0)
+                # eye center
+                for i in range(1900, 1500, -10):
+                    self._face_control_msg.pulse_width[FaceControl.SERVO_EYES_LEFT_RIGHT] = i
+                    self._face_control_publisher.publish(self._face_control_msg)
+                    time.sleep(0.02)
+                self._eye_mutex.release()
 
     def _blink_thread_callback(self):
         while rclpy.ok():
@@ -369,17 +373,31 @@ class HumanoidChatNode(Node):
         self._teach_mode_client.wait_for_service()
         self._teach_mode_client.call(msg)
     
-    def _shake_hand(self):
+    def _shake_hand(self, wait=5.0):
         self._play_arm_sequence_client.wait_for_service()
         req = PlayArmSequence.Request()
         req.duration = [1.5]
         req.frame_name = ['shake_hand']
         self._play_arm_sequence_client.call(req)
-        time.sleep(5)
+        time.sleep(wait)
         req.duration = [1.5]
         req.frame_name = ['home']
         self._play_arm_sequence_client.call(req)
     
+    def _rolling_eyes(self, duration=2.0, repeat=1, clockwise=True):
+        with self._eye_mutex:
+            d = -1 if clockwise else 1
+            for _ in range(repeat):
+                st = time.time()
+                while (t := time.time() - st) < duration:
+                    self._face_control_msg.pulse_width[FaceControl.SERVO_EYES_LEFT_RIGHT] = int(1500 + 400 * math.cos(d * 2 * math.pi * t / duration))
+                    self._face_control_msg.pulse_width[FaceControl.SERVO_EYES_UP_DOWN] = int(1500 + 200 * math.sin(d * 2 * math.pi * t / duration))
+                    self._face_control_publisher.publish(self._face_control_msg)
+                    time.sleep(0.02)
+            self._face_control_msg.pulse_width[FaceControl.SERVO_EYES_LEFT_RIGHT] = 1500
+            self._face_control_msg.pulse_width[FaceControl.SERVO_EYES_UP_DOWN] = 1500
+            self._face_control_publisher.publish(self._face_control_msg)
+
     def _do_action(self, action):
         if action == '挥手':
             self._azure.text_to_speech('好的。')
@@ -414,9 +432,10 @@ class HumanoidChatNode(Node):
         self._azure.wait_speech_synthesising()
         
         self._azure.text_to_speech('正在测试所有预设动作。')
+        self._rolling_eyes()
         self._nod_head(2)
         self._shake_head(2)
-        self._shake_hand()
+        self._shake_hand(1)
         self._wave_hand()
         self._draw_pitcure()
         self._test_random_gesture()

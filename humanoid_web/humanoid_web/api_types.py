@@ -201,3 +201,31 @@ class ApiGetArmFramesResponse(BaseModel):
             ]
         }
     }
+
+
+class ApiSetArmTeachModeRequest(BaseModel):
+    enable: bool
+    
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "enable": "true"
+                }
+            ]
+        }
+    }
+
+
+class ApiArmTeachRequest(BaseModel):
+    frame_name: str
+    
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "frame_name": "frame1"
+                }
+            ]
+        }
+    }

@@ -114,7 +114,7 @@ After=network-online.target
 Description="Humanoid launch"
 
 [Service]
-ExecStart=<path-to-launch.sh>
+ExecStart=/bin/bash <path-to-launch.sh>
 RemainAfterExit=no
 Restart=on-failure
 RestartSec=2s

@@ -200,10 +200,10 @@ class HumanoidArmNode(Node):
                 if self._teach_mode:
                     states = await asyncio.gather(
                         asyncio.wait_for(self._transport_left.cycle(
-                            [self._motors[i].controller.make_brake(query=True) for i in range(14, 19)]
+                            [self._motors[i].controller.make_stop(query=True) for i in range(14, 19)]
                         ), 0.2),
                         asyncio.wait_for(self._transport_right.cycle(
-                            [self._motors[i].controller.make_brake(query=True) for i in range(19, 24)]
+                            [self._motors[i].controller.make_stop(query=True) for i in range(19, 24)]
                         ), 0.2)
                     )
                 else:
