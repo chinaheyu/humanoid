@@ -12,6 +12,7 @@ import time
 import queue
 import random
 import math
+import numpy as np
 
 
 class HumanoidChatNode(Node):
@@ -114,7 +115,7 @@ class HumanoidChatNode(Node):
     def _move_eye_thread_callback(self):
         while rclpy.ok():
             # wait
-            time.sleep(30.0)
+            time.sleep(15.0)
             if self._eye_mutex.acquire(blocking=False):
                 # eye left
                 for i in range(1500, 1100, -10):
@@ -143,6 +144,16 @@ class HumanoidChatNode(Node):
                     self._face_control_publisher.publish(self._face_control_msg)
                     time.sleep(0.02)
                 self._eye_mutex.release()
+            # wait
+            time.sleep(15.0)
+            # eye brow uo
+            self._face_control_msg.pulse_width[FaceControl.SERVO_LEFT_EYEBROW_UP_DOWN] = 1700
+            self._face_control_msg.pulse_width[FaceControl.SERVO_RIGHT_EYEBROW_UP_DOWN] = 1300
+            self._face_control_publisher.publish(self._face_control_msg)
+            time.sleep(1)
+            self._face_control_msg.pulse_width[FaceControl.SERVO_LEFT_EYEBROW_UP_DOWN] = 1500
+            self._face_control_msg.pulse_width[FaceControl.SERVO_RIGHT_EYEBROW_UP_DOWN] = 1500
+            self._face_control_publisher.publish(self._face_control_msg)
 
     def _blink_thread_callback(self):
         while rclpy.ok():
@@ -283,21 +294,34 @@ class HumanoidChatNode(Node):
         hello_req.duration = [2.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.0]
         hello_req.frame_name = ['hello1', 'hello2', 'hello1', 'hello2', 'hello1', 'hello2', 'home']
         self._play_arm_sequence_client.call_async(hello_req)
-    
+
     def _shake_head(self, times=1):
-        for _ in range(times):
-            msg = NeckControl()
+        msg = NeckControl()
+        for j in np.arange(0.15, -0.35, -0.036):
             msg.pitch_velocity = 0.0
-            msg.yaw_angle = -0.35
+            msg.yaw_angle = j
             msg.yaw_max_velocity = 3.14
             self._neck_control_publisher.publish(msg)
-            time.sleep(0.7)
-            msg = NeckControl()
+            time.sleep(0.02)
+        for i in range(times):
+            for j in np.arange(-0.35, 0.65, 0.036):
+                msg.pitch_velocity = 0.0
+                msg.yaw_angle = j
+                msg.yaw_max_velocity = 3.14
+                self._neck_control_publisher.publish(msg)
+                time.sleep(0.02)
+            for j in np.arange(0.65, -0.35, -0.036):
+                msg.pitch_velocity = 0.0
+                msg.yaw_angle = j
+                msg.yaw_max_velocity = 3.14
+                self._neck_control_publisher.publish(msg)
+                time.sleep(0.02)
+        for j in np.arange(-0.35, 0.15, 0.036):
             msg.pitch_velocity = 0.0
-            msg.yaw_angle = 0.65
+            msg.yaw_angle = j
             msg.yaw_max_velocity = 3.14
             self._neck_control_publisher.publish(msg)
-            time.sleep(0.7)
+            time.sleep(0.02)
         msg = NeckControl()
         msg.pitch_velocity = 0.0
         msg.yaw_angle = 0.15
@@ -432,7 +456,7 @@ class HumanoidChatNode(Node):
         self._azure.wait_speech_synthesising()
         
         self._azure.text_to_speech('正在测试所有预设动作。')
-        self._rolling_eyes()
+        self._rolling_eyes(repeat=2)
         self._nod_head(2)
         self._shake_head(2)
         self._shake_hand(1)

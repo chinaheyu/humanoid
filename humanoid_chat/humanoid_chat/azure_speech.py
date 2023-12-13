@@ -62,6 +62,7 @@ class AzureSpeechService:
     def wait_speech_synthesising(self):
         if self._speech_synthesis_result is not None:
             self._speech_synthesis_result.get()
+            self._speech_synthesis_result = None
 
     def speech_to_text(self):
         while not self._speech_recognize_queue.empty():
@@ -79,7 +80,7 @@ class AzureSpeechService:
     def text_to_speech(self, text):
         self._speech_synthesising = True
         self.wait_speech_synthesising()
-        
+
         if self._voice_style is None:
             self._speech_synthesis_result = self._speech_synthesizer.speak_text_async(text)
         else:
