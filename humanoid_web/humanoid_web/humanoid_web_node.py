@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from .api_types import *
 from humanoid_interface.msg import MotorControl, MotorFeedback, FaceControl, NeckControl, HeadFeedback
-from humanoid_interface.srv import PlayArm, GetArmFrameList, TeachArm
+from humanoid_interface.srv import PlayArm, GetArmFrameList, TeachArm, GetActionList, DoAction
 from std_srvs.srv import SetBool, Empty
 
 class HumanoidWebNode(Node):
@@ -52,6 +52,8 @@ class HumanoidWebNode(Node):
         self._teach_mode_client = self.create_client(SetBool, "arm/teach_mode")
         self._calibration_client = self.create_client(Empty, "arm/calibration")
         self._teach_arm_client = self.create_client(TeachArm, "arm/teach")
+        self._get_action_list_client = self.create_client(GetActionList, "get_action_list")
+        self._do_action_client = self.create_client(DoAction, "do_action")
     
     def _motor_feedback_callback(self, msg: MotorFeedback) -> None:
         self.motor_feedback[msg.id] = msg
@@ -106,6 +108,21 @@ class HumanoidWebNode(Node):
             return []
         response = self._get_frame_list_client.call(request)
         return response.frames
+
+    def get_actions_list(self) -> List[str]:
+        request = GetActionList.Request()
+        if not self._get_action_list_client.wait_for_service(timeout_sec=1.0):
+            return []
+        response = self._get_action_list_client.call(request)
+        return response.actions
+
+    def do_action(self, action: str) -> bool:
+        request = DoAction.Request()
+        request.action = action
+        if not self._do_action_client.wait_for_service(timeout_sec=1.0):
+            return False
+        response = self._do_action_client.call(request)
+        return response.result
 
 
 humanoid_web_node = None
@@ -235,6 +252,21 @@ def arm_calibration():
 @app.post("/arm/teach")
 def teach_arm(command: ApiArmTeachRequest):
     result = humanoid_web_node.teach_arm(command.frame_name)
+    if result:
+        return {"message": "Success"}
+    else:
+        raise HTTPException(status_code=404)
+
+
+@app.get("/actions")
+def get_actions() -> ApiGetActionsResponse:
+    response = ApiGetActionsResponse(actions=humanoid_web_node.get_actions_list())
+    return response
+
+
+@app.post("/actions/do")
+def get_actions(command: ApiDoActionRequest):
+    result = humanoid_web_node.do_action(command.action)
     if result:
         return {"message": "Success"}
     else:

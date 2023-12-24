@@ -2,3 +2,4 @@
 *.STL binary
 *.table binary
 *.db binary
+*.wav binary

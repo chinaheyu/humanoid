@@ -229,3 +229,31 @@ class ApiArmTeachRequest(BaseModel):
             ]
         }
     }
+
+
+class ApiGetActionsResponse(BaseModel):
+    actions: List[str]
+    
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "actions": ["wave_hand", "rolling_eyes"]
+                }
+            ]
+        }
+    }
+
+
+class ApiDoActionRequest(BaseModel):
+    action: str
+    
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "action": "wave_hand"
+                }
+            ]
+        }
+    }

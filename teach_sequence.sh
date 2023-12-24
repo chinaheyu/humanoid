@@ -28,6 +28,6 @@ ros2 service call /arm/calibration std_srvs/srv/Empty "{}"
 
 for i in {1..100}; do
     read -p "Press Enter to record current frame..."
-    ros2 service call /arm/teach humanoid_interface/srv/TeachArm "frame_name: 'demo3_$i'"
-    echo "demo3_$i is saved."
+    ros2 service call /arm/teach humanoid_interface/srv/TeachArm "frame_name: 'hospital_demo_$i'"
+    echo "hospital_demo_$i is saved."
 done

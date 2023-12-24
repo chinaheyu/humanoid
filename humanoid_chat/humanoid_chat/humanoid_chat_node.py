@@ -16,9 +16,9 @@ import numpy as np
 
 
 class HumanoidChatNode(Node):
-    def __init__(self):
+    def __init__(self, node_name='humanoid_chat'):
         # Initialize node
-        super().__init__('humanoid_chat')
+        super().__init__(node_name)
         
         # get package path
         self._package_path = os.path.dirname(os.path.abspath(__file__))
@@ -64,10 +64,12 @@ class HumanoidChatNode(Node):
         self._face_control_msg = FaceControl()
         
         # blink timer
+        self._blink_on = True
         self._blink_thread = threading.Thread(target=self._blink_thread_callback)
         self._blink_thread.start()
         
         # move eye thread
+        self._eye_move_on = True
         self._eye_mutex = threading.Lock()
         self._move_eye_thread = threading.Thread(target=self._move_eye_thread_callback)
         self._move_eye_thread.start()
@@ -115,8 +117,7 @@ class HumanoidChatNode(Node):
     def _move_eye_thread_callback(self):
         while rclpy.ok():
             # wait
-            time.sleep(15.0)
-            if self._eye_mutex.acquire(blocking=False):
+            if self._eye_move_on and self._eye_mutex.acquire(blocking=False):
                 # eye left
                 for i in range(1500, 1100, -10):
                     self._face_control_msg.pulse_width[FaceControl.SERVO_EYES_LEFT_RIGHT] = i
@@ -145,30 +146,23 @@ class HumanoidChatNode(Node):
                     time.sleep(0.02)
                 self._eye_mutex.release()
             # wait
-            time.sleep(15.0)
-            # eye brow uo
-            self._face_control_msg.pulse_width[FaceControl.SERVO_LEFT_EYEBROW_UP_DOWN] = 1700
-            self._face_control_msg.pulse_width[FaceControl.SERVO_RIGHT_EYEBROW_UP_DOWN] = 1300
-            self._face_control_publisher.publish(self._face_control_msg)
-            time.sleep(1)
-            self._face_control_msg.pulse_width[FaceControl.SERVO_LEFT_EYEBROW_UP_DOWN] = 1500
-            self._face_control_msg.pulse_width[FaceControl.SERVO_RIGHT_EYEBROW_UP_DOWN] = 1500
-            self._face_control_publisher.publish(self._face_control_msg)
+            time.sleep(30.0)
 
     def _blink_thread_callback(self):
         while rclpy.ok():
             # wait
             time.sleep(5.0)
-            # eyelid down
-            self._face_control_msg.pulse_width[FaceControl.SERVO_LEFT_EYELID_UP_DOWN] = 905
-            self._face_control_msg.pulse_width[FaceControl.SERVO_RIGHT_EYELID_UP_DOWN] = 2088
-            self._face_control_publisher.publish(self._face_control_msg)
-            # wait
-            time.sleep(0.1)
-            # eyelid open
-            self._face_control_msg.pulse_width[FaceControl.SERVO_LEFT_EYELID_UP_DOWN] = 1500
-            self._face_control_msg.pulse_width[FaceControl.SERVO_RIGHT_EYELID_UP_DOWN] = 1500
-            self._face_control_publisher.publish(self._face_control_msg)
+            if self._blink_on:
+                # eyelid down
+                self._face_control_msg.pulse_width[FaceControl.SERVO_LEFT_EYELID_UP_DOWN] = 905
+                self._face_control_msg.pulse_width[FaceControl.SERVO_RIGHT_EYELID_UP_DOWN] = 2088
+                self._face_control_publisher.publish(self._face_control_msg)
+                # wait
+                time.sleep(0.1)
+                # eyelid open
+                self._face_control_msg.pulse_width[FaceControl.SERVO_LEFT_EYELID_UP_DOWN] = 1500
+                self._face_control_msg.pulse_width[FaceControl.SERVO_RIGHT_EYELID_UP_DOWN] = 1500
+                self._face_control_publisher.publish(self._face_control_msg)
 
     def _speak_callback(self, request: Speak.Request, response: Speak.Response):
         if self._azure.is_speech_synthesising():

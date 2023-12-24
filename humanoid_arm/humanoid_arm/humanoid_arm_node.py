@@ -103,6 +103,9 @@ class HumanoidArmNode(Node):
         return True
 
     def _play_sequence_callback(self, request: PlayArmSequence.Request, response: PlayArmSequence.Response) -> PlayArmSequence.Response:
+        if len(request.frame_name) != len(request.duration):
+            response.result = False
+            return response
         motor_id = list(self._motors.keys())
         X = [np.vstack([self._motors[i].feedback[0] for i in motor_id])]
         T = []
@@ -110,7 +113,7 @@ class HumanoidArmNode(Node):
             try:
                 with open(os.path.join(self._frames_data_path, f'{frame_name}.json'), 'r') as fp:
                     frame_dict = json.load(fp)
-            except RuntimeError:
+            except OSError:
                 response.result = False
                 return response
             X.append(np.vstack([frame_dict[str(i)] for i in motor_id]))

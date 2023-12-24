@@ -22,6 +22,13 @@ def generate_launch_description():
             name='humanoid_web'
         ),
         Node(
+            package='humanoid_chat',
+            executable='director_demo',
+            name='director_demo',
+            output='screen',
+            emulate_tty=True
+        ),
+        Node(
             package='humanoid_arm',
             executable='humanoid_arm_node',
             name='humanoid_arm'

@@ -97,6 +97,26 @@ wait_motors_online() {
     # wait_for_usb scut humanoid 206F32844D31 1
 }
 
+azure_tts() {
+    curl --location --request POST "https://$AZURE_SPEECH_REGION.tts.speech.microsoft.com/cognitiveservices/v1" \
+    --header "Ocp-Apim-Subscription-Key: $AZURE_SPEECH_KEY" \
+    --header 'Content-Type: application/ssml+xml' \
+    --header 'X-Microsoft-OutputFormat: audio-16khz-128kbitrate-mono-mp3' \
+    --header 'User-Agent: curl' \
+    --data-raw '<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="zh-CN" >
+    <voice name="zh-CN-XiaoxiaoNeural" >
+        <mstts:express-as style="affectionate">'$1'</mstts:express-as>
+    </voice>
+</speak>' > /tmp/tts_audio.mp3
+
+    ffmpeg -i /tmp/tts_audio.mp3 -acodec pcm_s16le -ar 16000 -ac 1 /tmp/tts_audio.wav
+
+    aplay -D sysdefault:CARD=DELI14870 /tmp/tts_audio.wav
+
+    rm /tmp/tts_audio.mp3
+    rm /tmp/tts_audio.wav
+}
+
 # catch error
 trap 'handle_error' ERR
 
@@ -132,5 +152,22 @@ WORKSPACE_DIR=$(find_workspace_directory)
 
 # launch ros2 packages
 source "${WORKSPACE_DIR}/install/setup.bash"
-ros2 launch humanoid_bringup bringup.py
-# ros2 launch humanoid_bringup bringup_without_chat.py
+
+# mode select
+aplay -D sysdefault:CARD=DELI14870 "$SOUNDS_DIR"/sound4.wav
+arecord -f S16_LE -r 16000 -c 1 -d 5 -D sysdefault:CARD=DELI14870 "/tmp/audio_wait_for_asr.wav"
+asr_result=$(curl --location --request POST \
+    "https://$AZURE_SPEECH_REGION.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=zh-CN&format=detailed" \
+    --header 'Transfer-Encoding: chunked' \
+    --header "Ocp-Apim-Subscription-Key: $AZURE_SPEECH_KEY" \
+    --header "Content-Type: audio/wav" \
+    --data-binary "@/tmp/audio_wait_for_asr.wav")
+rm /tmp/audio_wait_for_asr.wav
+
+if [[ $asr_result == *"导演"* ]]; then
+    aplay -D sysdefault:CARD=DELI14870 "$SOUNDS_DIR"/sound6.wav
+    ros2 launch humanoid_bringup bringup_without_chat.py
+else
+    aplay -D sysdefault:CARD=DELI14870 "$SOUNDS_DIR"/sound5.wav
+    ros2 launch humanoid_bringup bringup.py
+fi
