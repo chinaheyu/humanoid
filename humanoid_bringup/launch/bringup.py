@@ -34,6 +34,11 @@ def generate_launch_description():
             name='humanoid_arm'
         ),
         Node(
+            package='humanoid_chassis',
+            executable='chassis_driver_node',
+            name='chassis_driver'
+        ),
+        Node(
             package='robot_state_publisher',
             executable='robot_state_publisher',
             parameters=[{
