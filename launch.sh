@@ -154,20 +154,22 @@ WORKSPACE_DIR=$(find_workspace_directory)
 source "${WORKSPACE_DIR}/install/setup.bash"
 
 # mode select
-aplay -D sysdefault:CARD=DELI14870 "$SOUNDS_DIR"/sound4.wav
-arecord -f S16_LE -r 16000 -c 1 -d 5 -D sysdefault:CARD=DELI14870 "/tmp/audio_wait_for_asr.wav"
-asr_result=$(curl --location --request POST \
-    "https://$AZURE_SPEECH_REGION.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=zh-CN&format=detailed" \
-    --header 'Transfer-Encoding: chunked' \
-    --header "Ocp-Apim-Subscription-Key: $AZURE_SPEECH_KEY" \
-    --header "Content-Type: audio/wav" \
-    --data-binary "@/tmp/audio_wait_for_asr.wav")
-rm /tmp/audio_wait_for_asr.wav
+# aplay -D sysdefault:CARD=DELI14870 "$SOUNDS_DIR"/sound4.wav
+# arecord -f S16_LE -r 16000 -c 1 -d 3 -D sysdefault:CARD=DELI14870 "/tmp/audio_wait_for_asr.wav"
+# asr_result=$(curl --location --request POST \
+#     "https://$AZURE_SPEECH_REGION.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=zh-CN&format=detailed" \
+#     --header 'Transfer-Encoding: chunked' \
+#     --header "Ocp-Apim-Subscription-Key: $AZURE_SPEECH_KEY" \
+#     --header "Content-Type: audio/wav" \
+#     --data-binary "@/tmp/audio_wait_for_asr.wav")
+# rm /tmp/audio_wait_for_asr.wav
 
-if [[ $asr_result == *"导演"* ]]; then
-    aplay -D sysdefault:CARD=DELI14870 "$SOUNDS_DIR"/sound6.wav
-    ros2 launch humanoid_bringup bringup_without_chat.py
-else
-    aplay -D sysdefault:CARD=DELI14870 "$SOUNDS_DIR"/sound5.wav
-    ros2 launch humanoid_bringup bringup.py
-fi
+# if [[ $asr_result == *"导演"* ]]; then
+#     aplay -D sysdefault:CARD=DELI14870 "$SOUNDS_DIR"/sound6.wav
+#     ros2 launch humanoid_bringup bringup_direct.py
+# else
+#     aplay -D sysdefault:CARD=DELI14870 "$SOUNDS_DIR"/sound5.wav
+#     ros2 launch humanoid_bringup bringup.py
+# fi
+
+ros2 launch humanoid_bringup bringup_without_chat.py
