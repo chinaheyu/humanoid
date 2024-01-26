@@ -14,7 +14,9 @@ wait_network_online() {
 }
 
 handle_error() {
-    echo "An error occurred in command: $BASH_COMMAND"
+    local err_msg="An error occurred in command: $BASH_COMMAND"
+    echo "$err_msg"
+    azure_tts "$err_msg"
     exit 1
 }
 
@@ -107,14 +109,7 @@ azure_tts() {
     <voice name="zh-CN-XiaoxiaoNeural" >
         <mstts:express-as style="affectionate">'$1'</mstts:express-as>
     </voice>
-</speak>' > /tmp/tts_audio.mp3
-
-    ffmpeg -i /tmp/tts_audio.mp3 -acodec pcm_s16le -ar 16000 -ac 1 /tmp/tts_audio.wav
-
-    aplay -D sysdefault:CARD=DELI14870 /tmp/tts_audio.wav
-
-    rm /tmp/tts_audio.mp3
-    rm /tmp/tts_audio.wav
+</speak>' > | ffmpeg -i - -acodec pcm_s16le -ar 16000 -ac 1 - | aplay -D sysdefault:CARD=DELI14870
 }
 
 # catch error
