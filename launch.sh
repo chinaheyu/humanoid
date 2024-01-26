@@ -99,6 +99,11 @@ wait_motors_online() {
     # wait_for_usb scut humanoid 206F32844D31 1
 }
 
+wait_chassis_online() {
+    wait_for_path "/dev/input/js0" 1
+    wait_for_path "/dev/ttyUSB0" 1
+}
+
 azure_tts() {
     curl --location --request POST "https://$AZURE_SPEECH_REGION.tts.speech.microsoft.com/cognitiveservices/v1" \
     --header "Ocp-Apim-Subscription-Key: $AZURE_SPEECH_KEY" \
@@ -109,7 +114,7 @@ azure_tts() {
     <voice name="zh-CN-XiaoxiaoNeural" >
         <mstts:express-as style="affectionate">'$1'</mstts:express-as>
     </voice>
-</speak>' > | ffmpeg -i - -acodec pcm_s16le -ar 16000 -ac 1 - | aplay -D sysdefault:CARD=DELI14870
+</speak>' | ffmpeg -i - -acodec pcm_s16le -ar 16000 -ac 1 -f wav - | aplay -D sysdefault:CARD=DELI14870
 }
 
 # catch error
@@ -125,21 +130,19 @@ wait_audio_online
 amixer -q -c DELI14870 sset PCM 100%
 amixer -q -c DELI14870 sset Mic 80%
 echo "Set sound card volumn success!"
-
-# play notification sound
 aplay -D sysdefault:CARD=DELI14870 "$SOUNDS_DIR"/sound1.wav
 
 # wait for network
 wait_network_online
-
-# play notification sound
 aplay -D sysdefault:CARD=DELI14870 "$SOUNDS_DIR"/sound2.wav
+
+# wait for chassis devices
+wait_chassis_online
+aplay -D sysdefault:CARD=DELI14870 "$SOUNDS_DIR"/sound7.wav
 
 # wait for motor devices
 wait_motors_online
 echo "All devices are connected!"
-
-# play notification sound
 aplay -D sysdefault:CARD=DELI14870 "$SOUNDS_DIR"/sound3.wav
 
 # find ros2 workspace
@@ -149,22 +152,20 @@ WORKSPACE_DIR=$(find_workspace_directory)
 source "${WORKSPACE_DIR}/install/setup.bash"
 
 # mode select
-# aplay -D sysdefault:CARD=DELI14870 "$SOUNDS_DIR"/sound4.wav
-# arecord -f S16_LE -r 16000 -c 1 -d 3 -D sysdefault:CARD=DELI14870 "/tmp/audio_wait_for_asr.wav"
-# asr_result=$(curl --location --request POST \
-#     "https://$AZURE_SPEECH_REGION.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=zh-CN&format=detailed" \
-#     --header 'Transfer-Encoding: chunked' \
-#     --header "Ocp-Apim-Subscription-Key: $AZURE_SPEECH_KEY" \
-#     --header "Content-Type: audio/wav" \
-#     --data-binary "@/tmp/audio_wait_for_asr.wav")
-# rm /tmp/audio_wait_for_asr.wav
+aplay -D sysdefault:CARD=DELI14870 "$SOUNDS_DIR"/sound4.wav
+arecord -f S16_LE -r 16000 -c 1 -d 3 -D sysdefault:CARD=DELI14870 "/tmp/audio_wait_for_asr.wav"
+asr_result=$(curl --location --request POST \
+    "https://$AZURE_SPEECH_REGION.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=zh-CN&format=detailed" \
+    --header 'Transfer-Encoding: chunked' \
+    --header "Ocp-Apim-Subscription-Key: $AZURE_SPEECH_KEY" \
+    --header "Content-Type: audio/wav" \
+    --data-binary "@/tmp/audio_wait_for_asr.wav")
+rm /tmp/audio_wait_for_asr.wav
 
-# if [[ $asr_result == *"导演"* ]]; then
-#     aplay -D sysdefault:CARD=DELI14870 "$SOUNDS_DIR"/sound6.wav
-#     ros2 launch humanoid_bringup bringup_direct.py
-# else
-#     aplay -D sysdefault:CARD=DELI14870 "$SOUNDS_DIR"/sound5.wav
-#     ros2 launch humanoid_bringup bringup.py
-# fi
-
-ros2 launch humanoid_bringup bringup_without_chat.py
+if [[ $asr_result == *"导演"* ]]; then
+    aplay -D sysdefault:CARD=DELI14870 "$SOUNDS_DIR"/sound6.wav
+    ros2 launch humanoid_bringup bringup_direct.py
+else
+    aplay -D sysdefault:CARD=DELI14870 "$SOUNDS_DIR"/sound5.wav
+    ros2 launch humanoid_bringup bringup.py
+fi

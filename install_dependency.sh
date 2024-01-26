@@ -7,9 +7,9 @@ TOP_DIR=$(dirname "$SCRIPTPATH")
 
 . /opt/ros/$ROS_DISTRO/setup.sh
 
-apt-get update
-apt-get upgrade -y
-apt-get install -y python3-pip
+sudo apt-get update
+sudo apt-get upgrade -y
+sudo apt-get install -y python3-pip
 
 rosdep update --rosdistro=$ROS_DISTRO
 rosdep install --from-paths $TOP_DIR -r -y --ignore-src

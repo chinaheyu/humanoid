@@ -1,7 +1,6 @@
 import rclpy
 import rclpy.qos
 from rclpy.node import Node
-from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 import signal
@@ -43,21 +42,32 @@ def crc16_add(read):
 class ChassisDriverNode(Node):
     def __init__(self):
         super().__init__('chassis_driver')
-        self.declare_parameter('wheel_separation', 0.49, ParameterDescriptor(type=ParameterType.PARAMETER_DOUBLE))
-        self.declare_parameter('wheel_diameter', 0.169, ParameterDescriptor(type=ParameterType.PARAMETER_DOUBLE))
+        self.wheel_separation = 0.49
+        self.wheel_diameter = 0.169
 
-        self.declare_parameter('device_pid', 1155, ParameterDescriptor(type=ParameterType.PARAMETER_INTEGER))
-        self.declare_parameter('device_vid', 22336, ParameterDescriptor(type=ParameterType.PARAMETER_INTEGER))
-        self.declare_parameter('device_serial_number', "XXXXXXXXXX", ParameterDescriptor(type=ParameterType.PARAMETER_STRING))
+        self.odom_publisher = self.create_publisher(Odometry, 'odom', 10)
+        self.cmd_vel_subscription = self.create_subscription(Twist, 'cmd_vel', self.cmd_vel_callback, 10)
 
         self.serial_device = serial.Serial(self.detect_serial_device(), 115200)
+        self.initialize()
+
         self.publish_feedback_thread = threading.Thread(target=self.publish_feedback)
         self.publish_feedback_thread.start()
 
-        self.odom_publisher = self.create_publisher(Odometry, 'odom', rclpy.qos.QoSPresetProfiles.get_from_short_key("SENSOR_DATA"))
-        self.cmd_vel_subscription = self.create_subscription(Twist, 'cmd_vel', self.cmd_vel_callback, rclpy.qos.QoSPresetProfiles.get_from_short_key("SYSTEM_DEFAULT"))
-
         signal.signal(signal.SIGINT, self.signal_handler)
+        signal.signal(signal.SIGTERM, self.signal_handler)
+
+    def initialize(self):
+        self.serial_device.write(bytes.fromhex('01442318331800000000DD0C'))
+        time.sleep(0.1)
+        len_return_data = self.serial_device.inWaiting()
+        if len_return_data:
+            self.serial_device.read(len_return_data)
+        self.serial_device.write(bytes.fromhex('014421003100000100017534'))
+        time.sleep(0.1)
+        len_return_data = self.serial_device.inWaiting()
+        if len_return_data:
+            self.serial_device.read(len_return_data)
 
     def publish_feedback(self):
         if self.serial_device.is_open:
@@ -79,21 +89,10 @@ class ChassisDriverNode(Node):
             time.sleep(0.005)
 
     def detect_serial_device(self) -> str:
-        device_pid = self.get_parameter('device_pid').get_parameter_value().integer_value
-        device_vid = self.get_parameter('device_vid').get_parameter_value().integer_value
-        device_serial_number = self.get_parameter('device_serial_number').get_parameter_value().string_value
         for port_info in serial.tools.list_ports.comports():
-            if port_info.vid == device_pid and port_info.pid == device_vid and port_info.serial_number == device_serial_number:
+            if port_info.vid == 0x1a86 and port_info.pid == 0x7523 and port_info.product == 'USB Serial':
                 return port_info.device
-        raise RuntimeError(f'Could not find serial device with PID {device_pid}, VID {device_vid}, and serial number {device_serial_number}!')
-
-    @property
-    def wheel_separation(self) -> float:
-        return self.get_parameter('wheel_separation').get_parameter_value().double_value
-
-    @property
-    def wheel_diameter(self) -> float:
-        return self.get_parameter('wheel_diameter').get_parameter_value().double_value
+        raise RuntimeError(f'Could not find chassis serial device!')
 
     def get_rpm(self, linear_x, linear_y, angular_z):
         linear_vel_x_mins_ = linear_x * 60.0
@@ -132,6 +131,13 @@ class ChassisDriverNode(Node):
             self.serial_device.write(send_data)
 
     def clean_up_and_exit(self) -> None:
+        if self.serial_device.is_open:
+            self.serial_device.write(bytes.fromhex('01442100310000000000E534'))
+            time.sleep(0.01)
+            len_return_data = self.serial_device.inWaiting()
+            if len_return_data:
+                self.serial_device.read(len_return_data)
+            self.serial_device.close()
         self.destroy_node()
         rclpy.shutdown()
 
