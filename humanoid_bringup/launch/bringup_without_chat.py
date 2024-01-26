@@ -33,10 +33,11 @@ def generate_launch_description():
             executable='humanoid_arm_node',
             name='humanoid_arm'
         ),
-        Node(
-            package='humanoid_chassis',
-            executable='chassis_driver_node',
-            name='chassis_driver'
+        IncludeLaunchDescription(
+            AnyLaunchDescriptionSource([
+                os.path.join(get_package_share_directory('humanoid_chassis'), 'launch'),
+                '/joy_control.py'
+            ])
         ),
         Node(
             package='robot_state_publisher',
