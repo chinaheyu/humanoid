@@ -101,7 +101,7 @@ wait_motors_online() {
 
 wait_chassis_online() {
     wait_for_path "/dev/input/js0" 1
-    wait_for_path "/dev/ttyUSB0" 1
+    wait_for_path "/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0" 1
 }
 
 azure_tts() {
@@ -123,6 +123,12 @@ trap 'handle_error' ERR
 # sounds path
 SOUNDS_DIR="$(dirname $(readlink -f "$0"))"/humanoid_bringup/sounds
 
+# find ros2 workspace
+WORKSPACE_DIR=$(find_workspace_directory)
+
+# setup ros2 environment
+source "${WORKSPACE_DIR}/install/setup.bash"
+
 # wait for audio device
 wait_audio_online
 
@@ -132,24 +138,21 @@ amixer -q -c DELI14870 sset Mic 80%
 echo "Set sound card volumn success!"
 aplay -D sysdefault:CARD=DELI14870 "$SOUNDS_DIR"/sound1.wav
 
-# wait for network
-wait_network_online
-aplay -D sysdefault:CARD=DELI14870 "$SOUNDS_DIR"/sound2.wav
-
 # wait for chassis devices
 wait_chassis_online
 aplay -D sysdefault:CARD=DELI14870 "$SOUNDS_DIR"/sound7.wav
+
+# launch chassis control node
+ros2 launch humanoid_chassis joy_control.py &
 
 # wait for motor devices
 wait_motors_online
 echo "All devices are connected!"
 aplay -D sysdefault:CARD=DELI14870 "$SOUNDS_DIR"/sound3.wav
 
-# find ros2 workspace
-WORKSPACE_DIR=$(find_workspace_directory)
-
-# launch ros2 packages
-source "${WORKSPACE_DIR}/install/setup.bash"
+# wait for network
+wait_network_online
+aplay -D sysdefault:CARD=DELI14870 "$SOUNDS_DIR"/sound2.wav
 
 # mode select
 aplay -D sysdefault:CARD=DELI14870 "$SOUNDS_DIR"/sound4.wav

@@ -29,6 +29,29 @@ def generate_launch_description():
         Node(
             package='humanoid_chassis',
             executable='chassis_driver_node',
-            name='chassis_driver'
+            name='chassis_driver',
+            remappings=[
+                ('/cmd_vel', '/smoothed_cmd_vel')
+            ]
+        ),
+        Node(
+            package='velocity_smoother',
+            executable='velocity_smoother',
+            name='velocity_smoother',
+            parameters=[
+                {
+                    "speed_lim_v": 0.15,
+                    "speed_lim_w": 0.4,
+                    "accel_lim_v": 0.15,
+                    "accel_lim_w": 0.4,
+                    "decel_factor": 0.5,
+                    "frequency": 20.0,
+                    "feedback": 0
+                }
+            ],
+            remappings=[
+                ('~/input', '/cmd_vel'),
+                ('~/smoothed', '/smoothed_cmd_vel')
+            ]
         )
     ])
