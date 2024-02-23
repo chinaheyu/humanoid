@@ -76,6 +76,7 @@ class AzureSpeechService:
             if response is None:
                 break
             yield response
+        result.get()
 
     def text_to_speech(self, text):
         self._speech_synthesising = True
@@ -95,6 +96,8 @@ class AzureSpeechService:
             return True
         return False
 
-    def stop_all(self):
+    def stop_keyword_recognition(self):
         self._keyword_recognizer.stop_recognition_async().get()
+
+    def stop_speaking(self):
         self._speech_synthesizer.stop_speaking()

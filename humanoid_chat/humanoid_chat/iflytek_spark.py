@@ -137,9 +137,15 @@ class SparkDesk:
         if self._chat_thread is not None:
             if self._chat_thread.is_alive():
                 self._chat_thread.join()
-        while not self._response_queue.empty():
-            self._response_queue.get()
-            
+        if not self._response_queue.empty():
+            while True:
+                try:
+                    response = self._response_queue.get(timeout=timeout)
+                except queue.Empty:
+                    break
+                if response is None:
+                    break
+
         self._chat_thread = threading.Thread(target=self.chat, args=[question])
         self._chat_thread.start()
         while True:

@@ -5,7 +5,8 @@ import rclpy.qos
 from rclpy.node import Node
 from std_srvs.srv import SetBool, Empty
 from humanoid_interface.srv import Speak, PlayArmSequence
-from humanoid_interface.msg import ChatResult, FaceControl, HeadFeedback, MotorControl, NeckControl
+from humanoid_interface.msg import ChatResult, FaceControl, MotorControl, NeckControl
+from sensor_msgs.msg import Joy
 from .azure_speech import AzureSpeechService
 from .iflytek_spark import SparkDesk
 import time
@@ -48,6 +49,7 @@ class HumanoidChatNode(Node):
         
         # Chatting state
         self._chatting = True
+        self._keyword_detected_flag = False
         
         # Ros2 interface
         self._chat_switch_server = self.create_service(SetBool, 'chat_switch', self._chat_switch_callback)
@@ -59,6 +61,7 @@ class HumanoidChatNode(Node):
         self._teach_mode_client = self.create_client(SetBool, "arm/teach_mode")
         self._calibration_client = self.create_client(Empty, "arm/calibration")
         self._neck_control_publisher = self.create_publisher(NeckControl, "neck_control", rclpy.qos.QoSPresetProfiles.get_from_short_key("SYSTEM_DEFAULT"))
+        self._joy_subscription = self.create_subscription(Joy, "joy", self._joy_callback, rclpy.qos.QoSPresetProfiles.get_from_short_key("SENSOR_DATA"))
         
         # face control msg
         self._face_control_msg = FaceControl()
@@ -82,7 +85,12 @@ class HumanoidChatNode(Node):
         # start chat loop
         self._chat_thread = threading.Thread(target=self._main_loop)
         self._chat_thread.start()
-        
+
+    def _joy_callback(self, msg: Joy) -> None:
+        if not self._keyword_detected_flag and msg.buttons[0] == 1:
+            self._keyword_detected_flag = True
+            self._azure.stop_keyword_recognition()
+
     def _gesture_thread_callback(self):
         running_gesture = False
         current_gesture = None
@@ -106,7 +114,7 @@ class HumanoidChatNode(Node):
                 self._play_arm_sequence_client.wait_for_service()
                 self._play_arm_sequence_client.call(msg)
             time.sleep(1.0)
-    
+
     def _test_random_gesture(self):
         self._play_arm_sequence_client.wait_for_service()
         req = PlayArmSequence.Request()
@@ -220,7 +228,7 @@ class HumanoidChatNode(Node):
                 self._chat_thread.start()
             else:
                 self._chatting = False
-                self._azure.stop_all()
+                self._azure.stop_keyword_recognition()
                 if self._chat_thread is not None:
                     self._chat_thread.join()
             response.success = True
@@ -238,17 +246,6 @@ class HumanoidChatNode(Node):
         return None
 
     def _chat(self, question):
-        # allow keyword break chatting
-        keyword_detect_flag = False
-        def keyword_break_listener():
-            nonlocal keyword_detect_flag
-            if self._detect_keyword():
-                self.get_logger().info("Keyword detected, breaking chat.")
-                keyword_detect_flag = True
-                self._azure.stop_all()
-        keyword_detect_thread = threading.Thread(target=keyword_break_listener)
-        keyword_detect_thread.start()
-
         if (prev_response := self._serach_preset_answer(question)) is not None:
             # Using preset answer in database
             self.get_logger().info("Found preset answer in database.")
@@ -260,27 +257,21 @@ class HumanoidChatNode(Node):
             prev_response = ""
             synthesis_ptr = 0
             for response in self._chat_model.chat_stream(question):
-                if keyword_detect_flag:
-                    break
                 # print stream response
                 print(response[len(prev_response):], end='', flush=True)
                 # synthesis
-                if (not keyword_detect_flag) and (not self._azure.is_speech_synthesising()):
+                if not self._azure.is_speech_synthesising():
                     sep_ptr = max(response.rfind(i) for i in [",", ";", ".", "?", "，", "；", "。", "？"])
                     if sep_ptr > synthesis_ptr:
                         self._azure.text_to_speech(response[synthesis_ptr:sep_ptr].replace('科大讯飞', '华南理工大学张智军教授').replace('讯飞星火认知大模型', '类人机器人'))
                         synthesis_ptr = sep_ptr
                 prev_response = response
             print()
-            if prev_response[synthesis_ptr:] and not keyword_detect_flag:
+            if prev_response[synthesis_ptr:]:
                 self._azure.text_to_speech(prev_response[synthesis_ptr:].replace('科大讯飞', '华南理工大学张智军教授').replace('讯飞星火认知大模型', '类人机器人'))
 
         self._azure.wait_speech_synthesising()
-        self._azure.stop_all()
-        if keyword_detect_thread.is_alive():
-            keyword_detect_thread.join()
-        self._azure.wait_speech_synthesising()
-        return prev_response, keyword_detect_flag
+        return prev_response
 
     def _wave_hand(self):
         self._play_arm_sequence_client.wait_for_service()
@@ -369,13 +360,14 @@ class HumanoidChatNode(Node):
     
     def _detect_keyword(self):
         self.get_logger().info("Recognizing keyword.")
-        if self._azure.recognize_keyword(os.path.join(self._package_path, "xl.table")):
-            self.get_logger().info("Keyword recognize success.")
-            return True
-        else:
-            self.get_logger().error("Keyword recognize faliure.")
-            return False
-    
+        self._keyword_detected_flag = False
+        while not self._keyword_detected_flag:
+            if self._azure.recognize_keyword(os.path.join(self._package_path, "xl.table")):
+                self.get_logger().info("Keyword recognize success.")
+                self._keyword_detected_flag = True
+            else:
+                self.get_logger().error("Keyword recognize faliure.")
+
     def _enter_teach_mode(self):
         msg = SetBool.Request()
         msg.data = True
@@ -468,14 +460,11 @@ class HumanoidChatNode(Node):
         self._wave_hand()
         self._azure.wait_speech_synthesising()
 
-        keyword_detect_flag = False
         while self._chatting:
             # Detect keyword
-            if not keyword_detect_flag:
-                self._detect_keyword()
+            self._detect_keyword()
             self._azure.text_to_speech('我在')
             self._azure.wait_speech_synthesising()
-            keyword_detect_flag = False
 
             # ASR
             self.get_logger().info("Speech recognizing.")
@@ -493,7 +482,7 @@ class HumanoidChatNode(Node):
                 answer = ""
             else:
                 self._gesture_on = True
-                answer, keyword_detect_flag = self._chat(question)
+                answer = self._chat(question)
                 self._gesture_on = False
             
             # Publish result
