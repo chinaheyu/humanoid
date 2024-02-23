@@ -35,16 +35,16 @@ def generate_launch_description():
             ]
         ),
         Node(
-            package='velocity_smoother',
+            package='kobuki_velocity_smoother',
             executable='velocity_smoother',
             name='velocity_smoother',
             parameters=[
                 {
-                    "speed_lim_v": 0.15,
-                    "speed_lim_w": 0.4,
-                    "accel_lim_v": 0.15,
-                    "accel_lim_w": 0.4,
-                    "decel_factor": 0.5,
+                    "speed_lim_v": 0.1,
+                    "speed_lim_w": 0.3,
+                    "accel_lim_v": 0.2,
+                    "accel_lim_w": 0.6,
+                    "decel_factor": 1.0,
                     "frequency": 20.0,
                     "feedback": 0
                 }
