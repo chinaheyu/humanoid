@@ -68,10 +68,14 @@ class HumanoidArmNode(Node):
         return response
     
     def _teach_mode_callback(self, request: SetBool.Request, response: SetBool.Response) -> SetBool.Response:
+        if not request.data:
+            # Reset all motor target to current position
+            for motor in self._motors.values():
+                motor.target = motor.feedback.copy()
         self._teach_mode = request.data
         response.success = True
         return response
-    
+
     def _get_frame_list_callback(self, request: GetArmFrameList.Request, response: GetArmFrameList.Response) -> GetArmFrameList.Response:
         response.frames = []
         for f in os.listdir(self._frames_data_path):
@@ -212,7 +216,7 @@ class HumanoidArmNode(Node):
                 else:
                     # Check joint limit
                     if any([abs(c.target[0]) > 3.0 for c in self._motors.values()]):
-                        self.get_logger().error(f'Some target of arm motors is greater than 3.0, ignored.')
+                        # self.get_logger().error(f'Some target of arm motors is greater than 3.0, ignored.')
                         continue
 
                     states = await asyncio.gather(

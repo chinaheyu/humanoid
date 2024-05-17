@@ -52,3 +52,4 @@ CATKIN_IGNORE
 
 #python
 __pycache__
+humanoid_chat/humanoid_chat/cache

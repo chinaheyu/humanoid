@@ -27,6 +27,14 @@ def generate_launch_description():
             name='humanoid_arm'
         ),
         Node(
+            package='joy', executable='joy_node', name='joy_node',
+            parameters=[{
+                'dev': '/dev/input/js0',
+                'deadzone': 0.3,
+                'autorepeat_rate': 20.0,
+            }]
+        ),
+        Node(
             package='robot_state_publisher',
             executable='robot_state_publisher',
             parameters=[{

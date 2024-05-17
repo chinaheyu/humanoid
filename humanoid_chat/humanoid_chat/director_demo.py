@@ -1,3 +1,4 @@
+import rclpy.executors
 from .humanoid_chat_node import HumanoidChatNode
 import time
 import rclpy
@@ -6,6 +7,7 @@ from humanoid_interface.srv import PlayArmSequence, DoAction, GetActionList
 from typing import Type, Union, List
 import queue
 import numpy as np
+import math
 
 
 class DirectorDemoNode(HumanoidChatNode):
@@ -58,9 +60,9 @@ class DirectorDemoNode(HumanoidChatNode):
         self._enter_teach_mode()
 
         self._azure.text_to_speech('开始校准手臂电机，请让双臂自然下垂，完成校准后请对我说小琳。')
+        self._azure.wait_speech_synthesising()
         self._detect_keyword()
         self._calibration_arm()
-        self._azure.wait_speech_synthesising()
         self._azure.text_to_speech('已完成校准。')
         self._azure.wait_speech_synthesising()
         self._calibrated = True
@@ -405,6 +407,350 @@ class HospitalDemoAction12(DirectorActionBase):
         node._azure.wait_speech_synthesising()
 
 
+class LXRDemo1(DirectorActionBase):
+    def __init__(self, parent_action: Union[Type[DirectorActionBase], None] = None) -> None:
+        super().__init__('lxr_demo1', parent_action)
+
+    def init(self, node: DirectorDemoNode) -> None:
+        node._eye_move_on = False
+        msg = NeckControl()
+        msg.pitch_velocity = -0.3
+        msg.yaw_angle = 0.25
+        msg.yaw_max_velocity = 3.14
+        node._neck_control_publisher.publish(msg)
+        time.sleep(1.0)
+        msg = NeckControl()
+        msg.pitch_velocity = 0.3
+        msg.yaw_angle = 0.25
+        msg.yaw_max_velocity = 3.14
+        node._neck_control_publisher.publish(msg)
+        time.sleep(0.2)
+        msg.pitch_velocity = 0.0
+        msg.yaw_angle = 0.25
+        msg.yaw_max_velocity = 3.14
+        node._neck_control_publisher.publish(msg)
+
+    def run(self, node: DirectorDemoNode) -> None:
+        node._play_arm_sequence_client.wait_for_service()
+        hello_req = PlayArmSequence.Request()
+        hello_req.duration = [2.0, 2.0]
+        hello_req.frame_name = ['lxr_1', 'home']
+        node._play_arm_sequence_client.call_async(hello_req)
+        node._azure.text_to_speech('将机器狗改造为导盲犬的想法是很有创意和潜力的。')
+        node._azure.wait_speech_synthesising()
+        
+        node._play_arm_sequence_client.wait_for_service()
+        hello_req = PlayArmSequence.Request()
+        hello_req.duration = [1.5, 1.5, 1.5, 1.5, 1.5, 1.5]
+        hello_req.frame_name = ['lxr_2', 'lxr_3', 'lxr_4', 'lxr_3', 'lxr_2', 'home']
+        node._play_arm_sequence_client.call_async(hello_req)
+        node._azure.text_to_speech('虽然目前机器狗的技术还在发展中，并且在复杂环境中实现导盲功能仍然面临挑战。')
+        node._azure.wait_speech_synthesising()
+        
+        time.sleep(1)
+
+        node._play_arm_sequence_client.wait_for_service()
+        hello_req = PlayArmSequence.Request()
+        hello_req.duration = [2.0, 2.0]
+        hello_req.frame_name = ['lxr_1', 'home']
+        node._play_arm_sequence_client.call_async(hello_req)
+        node._azure.text_to_speech('但这个想法可以作为一个创新的起点。')
+        node._azure.wait_speech_synthesising()
+
+
+class LXRDemo2(DirectorActionBase):
+    def __init__(self, parent_action: Union[Type[DirectorActionBase], None] = None) -> None:
+        super().__init__('lxr_demo2', parent_action)
+    
+    def run(self, node: DirectorDemoNode) -> None:
+        node._gesture_on = True
+        node._azure.text_to_speech('目前常用于障碍物检测的传感器有：（1）激光雷达：它可以提供高精度的障碍物检测和建图能力，广泛用于导航和避障。（2）超声波传感器：它适用于近距离的障碍物检测，但精度和范围有限。（3）红外传感器：它常用于近距离的障碍物检测，但在阳光强烈的环境中可能受到干扰。（4）视觉传感器：通过计算机视觉算法，摄像头可以捕捉环境图像，并进行物体检测和跟踪。这种传感器可以提供丰富的信息，但对于复杂场景和光照条件有一定的挑战。')
+        node._azure.wait_speech_synthesising()
+        node._gesture_on = False
+
+
+class LXRDemo3(DirectorActionBase):
+    def __init__(self, parent_action: Union[Type[DirectorActionBase], None] = None) -> None:
+        super().__init__('lxr_demo3', parent_action)
+    
+    def run(self, node: DirectorDemoNode) -> None:
+        node._gesture_on = True
+        node._azure.text_to_speech('MATLAB和Python是不同的编程语言，它们具有不同的语法和功能。因此，在转换过程中可能需要进行一些适应性调整和改进。')
+        node._azure.wait_speech_synthesising()
+        node._gesture_on = False
+        
+        node._azure.text_to_speech('请您把程序上传给我。')
+        node._azure.wait_speech_synthesising()
+
+
+class LXRDemo4(DirectorActionBase):
+    def __init__(self, parent_action: Union[Type[DirectorActionBase], None] = None) -> None:
+        super().__init__('lxr_demo4', parent_action)
+
+    def run(self, node: DirectorDemoNode) -> None:
+        node._play_arm_sequence_client.wait_for_service()
+        hello_req = PlayArmSequence.Request()
+        hello_req.duration = [2.0, 2.0, 2.0, 2.0, 2.0]
+        hello_req.frame_name = ['lxr_5', 'lxr_6', 'lxr_5', 'lxr_6', 'home']
+        node._play_arm_sequence_client.call_async(hello_req)
+        node._azure.text_to_speech('我现在学习一下你的这段Matlab程序，然后再帮你转化成Python程序。')
+    
+        msg = NeckControl()
+        msg.pitch_velocity = 0.3
+        msg.yaw_angle = 0.25
+        msg.yaw_max_velocity = 3.14
+        node._neck_control_publisher.publish(msg)
+        time.sleep(0.2)
+        msg.pitch_velocity = 0.0
+        msg.yaw_angle = 0.25
+        msg.yaw_max_velocity = 3.14
+        node._neck_control_publisher.publish(msg)
+
+        with node._eye_mutex:
+            for _ in range(4):
+                st = time.time()
+                while (t := time.time() - st) < 2.0:
+                    node._face_control_msg.pulse_width[FaceControl.SERVO_EYES_LEFT_RIGHT] = int(1500 + 400 * math.cos(2 * math.pi * t / 2.0))
+                    node._face_control_publisher.publish(node._face_control_msg)
+                    time.sleep(0.02)
+            node._face_control_msg.pulse_width[FaceControl.SERVO_EYES_LEFT_RIGHT] = 1500
+            node._face_control_publisher.publish(node._face_control_msg)
+
+        node._azure.wait_speech_synthesising()
+        msg.pitch_velocity = -0.3
+        msg.yaw_angle = 0.25
+        msg.yaw_max_velocity = 3.14
+        node._neck_control_publisher.publish(msg)
+        time.sleep(0.2)
+        msg.pitch_velocity = 0.0
+        msg.yaw_angle = 0.25
+        msg.yaw_max_velocity = 3.14
+        node._neck_control_publisher.publish(msg)
+
+
+class ChineseMedicineDemo1(DirectorActionBase):
+    def __init__(self, parent_action: Union[Type[DirectorActionBase], None] = None) -> None:
+        super().__init__('chinese_medicine_demo1', parent_action)
+    
+    def run(self, node: DirectorDemoNode) -> None:
+        node._gesture_on = True
+        node._azure.text_to_speech('欢迎来到，中医健康体质判断平台。我是你的私人中医医疗机器人小琳。如果你准备好了，请对我说：小琳')
+        node._azure.wait_speech_synthesising()
+        node._gesture_on = False
+
+
+class ChineseMedicineDemo2(DirectorActionBase):
+    def __init__(self, parent_action: Union[Type[DirectorActionBase], None] = None) -> None:
+        super().__init__('chinese_medicine_demo2', parent_action)
+    
+    def run(self, node: DirectorDemoNode) -> None:
+        node._azure.text_to_speech('好的，让我们进入面向扫描环节。请看着我的眼睛。')
+        node._azure.wait_speech_synthesising()
+
+
+class ChineseMedicineDemo3(DirectorActionBase):
+    def __init__(self, parent_action: Union[Type[DirectorActionBase], None] = None) -> None:
+        super().__init__('chinese_medicine_demo3', parent_action)
+    
+    def run(self, node: DirectorDemoNode) -> None:
+        for i in range(1500, 1300, -10):
+            node._face_control_msg.pulse_width[FaceControl.SERVO_EYES_UP_DOWN] = i
+            node._face_control_publisher.publish(node._face_control_msg)
+            time.sleep(0.02)
+        for i in range(1300, 1500, 10):
+            node._face_control_msg.pulse_width[FaceControl.SERVO_EYES_UP_DOWN] = i
+            node._face_control_publisher.publish(node._face_control_msg)
+            time.sleep(0.02)
+        for i in range(1500, 1700, 10):
+            node._face_control_msg.pulse_width[FaceControl.SERVO_EYES_UP_DOWN] = i
+            node._face_control_publisher.publish(node._face_control_msg)
+            time.sleep(0.02)
+        for i in range(1700, 1500, -10):
+            node._face_control_msg.pulse_width[FaceControl.SERVO_EYES_UP_DOWN] = i
+            node._face_control_publisher.publish(node._face_control_msg)
+            time.sleep(0.02)
+        for i in range(1500, 1300, -10):
+            node._face_control_msg.pulse_width[FaceControl.SERVO_EYES_UP_DOWN] = i
+            node._face_control_publisher.publish(node._face_control_msg)
+            time.sleep(0.02)
+        for i in range(1300, 1500, 10):
+            node._face_control_msg.pulse_width[FaceControl.SERVO_EYES_UP_DOWN] = i
+            node._face_control_publisher.publish(node._face_control_msg)
+            time.sleep(0.02)
+
+
+class ChineseMedicineDemo4(DirectorActionBase):
+    def __init__(self, parent_action: Union[Type[DirectorActionBase], None] = None) -> None:
+        super().__init__('chinese_medicine_demo4', parent_action)
+    
+    def run(self, node: DirectorDemoNode) -> None:
+        node._azure.text_to_speech('好的，我们进入舌苔扫描环节。请您伸出您的舌头。')
+        node._azure.wait_speech_synthesising()
+
+
+class ChineseMedicineDemo5(DirectorActionBase):
+    def __init__(self, parent_action: Union[Type[DirectorActionBase], None] = None) -> None:
+        super().__init__('chinese_medicine_demo5', parent_action)
+    
+    def run(self, node: DirectorDemoNode) -> None:
+        for i in range(1500, 1300, -10):
+            node._face_control_msg.pulse_width[FaceControl.SERVO_EYES_UP_DOWN] = i
+            node._face_control_publisher.publish(node._face_control_msg)
+            time.sleep(0.02)
+        for i in range(1300, 1500, 10):
+            node._face_control_msg.pulse_width[FaceControl.SERVO_EYES_UP_DOWN] = i
+            node._face_control_publisher.publish(node._face_control_msg)
+            time.sleep(0.02)
+        for i in range(1500, 1700, 10):
+            node._face_control_msg.pulse_width[FaceControl.SERVO_EYES_UP_DOWN] = i
+            node._face_control_publisher.publish(node._face_control_msg)
+            time.sleep(0.02)
+        for i in range(1700, 1500, -10):
+            node._face_control_msg.pulse_width[FaceControl.SERVO_EYES_UP_DOWN] = i
+            node._face_control_publisher.publish(node._face_control_msg)
+            time.sleep(0.02)
+        for i in range(1500, 1300, -10):
+            node._face_control_msg.pulse_width[FaceControl.SERVO_EYES_UP_DOWN] = i
+            node._face_control_publisher.publish(node._face_control_msg)
+            time.sleep(0.02)
+        for i in range(1300, 1500, 10):
+            node._face_control_msg.pulse_width[FaceControl.SERVO_EYES_UP_DOWN] = i
+            node._face_control_publisher.publish(node._face_control_msg)
+            time.sleep(0.02)
+
+
+class ChineseMedicineDemo6(DirectorActionBase):
+    def __init__(self, parent_action: Union[Type[DirectorActionBase], None] = None) -> None:
+        super().__init__('chinese_medicine_demo6', parent_action)
+    
+    def run(self, node: DirectorDemoNode) -> None:
+        node._azure.text_to_speech('好的，我们进入脉象诊断环节。请您将手放在桌面的框里。')
+        node._azure.wait_speech_synthesising()
+
+
+class ChineseMedicineDemo7(DirectorActionBase):
+    def __init__(self, parent_action: Union[Type[DirectorActionBase], None] = None) -> None:
+        super().__init__('chinese_medicine_demo7', parent_action)
+    
+    def run(self, node: DirectorDemoNode) -> None:
+        node._play_arm_sequence_client.wait_for_service()
+        hello_req = PlayArmSequence.Request()
+        hello_req.duration = [2.0, 2.0, 2.0, 2.0, 2.0]
+        hello_req.frame_name = ['cmdemo1', 'cmdemo2', 'cmdemo3', 'cmdemo4', 'cmdemo5']
+        node._play_arm_sequence_client.call(hello_req)
+
+
+class ChineseMedicineDemo8(DirectorActionBase):
+    def __init__(self, parent_action: Union[Type[DirectorActionBase], None] = None) -> None:
+        super().__init__('chinese_medicine_demo8', parent_action)
+    
+    def run(self, node: DirectorDemoNode) -> None:
+        node._play_arm_sequence_client.wait_for_service()
+        hello_req = PlayArmSequence.Request()
+        hello_req.duration = [2.0, 2.0, 2.0, 2.0]
+        hello_req.frame_name = ['cmdemo6', 'cmdemo7', 'cmdemo8', 'cmdemo9']
+        node._play_arm_sequence_client.call(hello_req)
+
+
+class ChineseMedicineDemo9(DirectorActionBase):
+    def __init__(self, parent_action: Union[Type[DirectorActionBase], None] = None) -> None:
+        super().__init__('chinese_medicine_demo9', parent_action)
+    
+    def run(self, node: DirectorDemoNode) -> None:
+        node._gesture_on = True
+        node._azure.text_to_speech('好的，经过初步的观察，我想了解一下您平时的身体状况。首先，请问您是否容易感到疲乏呢？比如说，稍微活动一下或者爬上爬下就感到累？')
+        node._azure.wait_speech_synthesising()
+        node._gesture_on = False
+
+
+class ChineseMedicineDemo10(DirectorActionBase):
+    def __init__(self, parent_action: Union[Type[DirectorActionBase], None] = None) -> None:
+        super().__init__('chinese_medicine_demo10', parent_action)
+    
+    def run(self, node: DirectorDemoNode) -> None:
+        node._gesture_on = True
+        node._azure.text_to_speech('好的，了解了。那请问您有没有经常觉得气短，没有感觉接不上气。')
+        node._azure.wait_speech_synthesising()
+        node._gesture_on = False
+
+
+class ChineseMedicineDemo11(DirectorActionBase):
+    def __init__(self, parent_action: Union[Type[DirectorActionBase], None] = None) -> None:
+        super().__init__('chinese_medicine_demo11', parent_action)
+    
+    def run(self, node: DirectorDemoNode) -> None:
+        node._gesture_on = True
+        node._azure.text_to_speech('嗯，好的。再请问您，您说话声音会不会感觉低弱无力，像没有力气那样。')
+        node._azure.wait_speech_synthesising()
+        node._gesture_on = False
+
+
+class ChineseMedicineDemo12(DirectorActionBase):
+    def __init__(self, parent_action: Union[Type[DirectorActionBase], None] = None) -> None:
+        super().__init__('chinese_medicine_demo12', parent_action)
+    
+    def run(self, node: DirectorDemoNode) -> None:
+        node._gesture_on = True
+        node._azure.text_to_speech('好的，了解了。请问您最近是否有感冒？')
+        node._azure.wait_speech_synthesising()
+        node._gesture_on = False
+
+
+class ChineseMedicineDemo13(DirectorActionBase):
+    def __init__(self, parent_action: Union[Type[DirectorActionBase], None] = None) -> None:
+        super().__init__('chinese_medicine_demo13', parent_action)
+    
+    def run(self, node: DirectorDemoNode) -> None:
+        node._gesture_on = True
+        node._azure.text_to_speech('好的，了解了。请问您的手脚容不容易发凉。')
+        node._azure.wait_speech_synthesising()
+        node._gesture_on = False
+
+
+class ChineseMedicineDemo14(DirectorActionBase):
+    def __init__(self, parent_action: Union[Type[DirectorActionBase], None] = None) -> None:
+        super().__init__('chinese_medicine_demo14', parent_action)
+    
+    def run(self, node: DirectorDemoNode) -> None:
+        node._gesture_on = True
+        node._azure.text_to_speech('好的，了解了。请问您的睡眠质量怎么样？')
+        node._azure.wait_speech_synthesising()
+        node._gesture_on = False
+
+
+class ChineseMedicineDemo15(DirectorActionBase):
+    def __init__(self, parent_action: Union[Type[DirectorActionBase], None] = None) -> None:
+        super().__init__('chinese_medicine_demo15', parent_action)
+    
+    def run(self, node: DirectorDemoNode) -> None:
+        node._gesture_on = True
+        node._azure.text_to_speech('本次体质检测已完成，您的体质是痰湿质，感谢你的参与。报告已生成，听去医生那边领取。还有什么问题需要问我的吗？')
+        node._azure.wait_speech_synthesising()
+        node._gesture_on = False
+
+
+class ChineseMedicineDemo16(DirectorActionBase):
+    def __init__(self, parent_action: Union[Type[DirectorActionBase], None] = None) -> None:
+        super().__init__('chinese_medicine_demo16', parent_action)
+    
+    def run(self, node: DirectorDemoNode) -> None:
+        node._gesture_on = True
+        node._azure.text_to_speech('痰湿体质在肥胖人群中比较普遍，它是由于水液内停而痰湿凝聚，以粘滞重浊为主要特征的体质状态。表现为：体形肥胖，腹部肥满松软；面部皮肤油脂较多，多汗且黏，胸闷，痰多；或面色淡黄而暗，眼胞微浮，容易困倦；平素舌体胖大，苔白腻，口黏腻或甜，喜食肥甘甜黏；身重不爽，大便正常或不实，小便不多或微浊 ，脉诊比较滑；')
+        node._azure.wait_speech_synthesising()
+        node._gesture_on = False
+
+
+class ChineseMedicineDemo17(DirectorActionBase):
+    def __init__(self, parent_action: Union[Type[DirectorActionBase], None] = None) -> None:
+        super().__init__('chinese_medicine_demo17', parent_action)
+    
+    def run(self, node: DirectorDemoNode) -> None:
+        node._gesture_on = True
+        node._azure.text_to_speech('管住嘴迈开腿，化痰祛湿为主；饮食清淡，容易消化；慎食肥甘厚味，少喝酒勿过饱；特别提醒：痰湿体质夏天容易依赖空调，可以经常喝一杯生姜茶，会出汗畅通，情绪平稳，明显增强耐热力，可以改善痰湿体质。')
+        node._azure.wait_speech_synthesising()
+        node._gesture_on = False
+
+
 def main(args=None):
     rclpy.init(args=args)
     
@@ -431,9 +777,34 @@ def main(args=None):
     action_list.append(HospitalDemoAction10(action_list[-1]))
     action_list.append(HospitalDemoAction11(action_list[-1]))
     action_list.append(HospitalDemoAction12(action_list[-1]))
+    
+    action_list.append(LXRDemo1())
+    action_list.append(LXRDemo2(action_list[-1]))
+    action_list.append(LXRDemo3(action_list[-1]))
+    action_list.append(LXRDemo4(action_list[-1]))
+    
+    action_list.append(ChineseMedicineDemo1())
+    action_list.append(ChineseMedicineDemo2(action_list[-1]))
+    action_list.append(ChineseMedicineDemo3(action_list[-1]))
+    action_list.append(ChineseMedicineDemo4(action_list[-1]))
+    action_list.append(ChineseMedicineDemo5(action_list[-1]))
+    action_list.append(ChineseMedicineDemo6(action_list[-1]))
+    action_list.append(ChineseMedicineDemo7(action_list[-1]))
+    action_list.append(ChineseMedicineDemo8(action_list[-1]))
+    action_list.append(ChineseMedicineDemo9(action_list[-1]))
+    action_list.append(ChineseMedicineDemo10(action_list[-1]))
+    action_list.append(ChineseMedicineDemo11(action_list[-1]))
+    action_list.append(ChineseMedicineDemo12(action_list[-1]))
+    action_list.append(ChineseMedicineDemo13(action_list[-1]))
+    action_list.append(ChineseMedicineDemo14(action_list[-1]))
+    action_list.append(ChineseMedicineDemo15(action_list[-1]))
+    action_list.append(ChineseMedicineDemo16(action_list[-1]))
+    action_list.append(ChineseMedicineDemo17(action_list[-1]))
 
     director_demo_node = DirectorDemoNode(action_list)
-    rclpy.spin(director_demo_node)
+    executor = rclpy.executors.MultiThreadedExecutor(4)
+    executor.add_node(director_demo_node)
+    executor.spin()
 
 
 if __name__ == '__main__':

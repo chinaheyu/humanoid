@@ -12,7 +12,6 @@ import random
 import string
 
 
-
 class AuthorizeUrl:
     def __init__(self, api_key, api_secret, host, path):
         self._api_key = api_key
@@ -68,6 +67,7 @@ class SparkDesk:
         self._total_response = ""
         self._response_queue = queue.Queue()
         self._chat_thread = None
+        self._breaking_flag = False
 
     def _generate_params(self):
         data = {
@@ -92,6 +92,9 @@ class SparkDesk:
         return data
 
     def _on_message(self, ws, message):
+        if self._breaking_flag:
+            ws.close()
+            self._response_queue.put(None)
         msg = json.loads(message)
         code = msg["header"]["code"]
         if code != 0:
@@ -102,6 +105,9 @@ class SparkDesk:
             self._total_tokens.append(msg["payload"]["usage"]["text"]["total_tokens"])
             self._response_queue.put(None)
             ws.close()
+    
+    def break_stream(self):
+        self._breaking_flag = True
 
     @property
     def tokens(self):
@@ -115,6 +121,7 @@ class SparkDesk:
 
     def _on_open(self, ws):
         self._total_response = ""
+        self._breaking_flag = False
         ws.send(json.dumps(self._generate_params()))
 
     def reset(self):
@@ -138,13 +145,8 @@ class SparkDesk:
             if self._chat_thread.is_alive():
                 self._chat_thread.join()
         if not self._response_queue.empty():
-            while True:
-                try:
-                    response = self._response_queue.get(timeout=timeout)
-                except queue.Empty:
-                    break
-                if response is None:
-                    break
+            with self._response_queue.mutex:
+                self._response_queue.queue.clear()
 
         self._chat_thread = threading.Thread(target=self.chat, args=[question])
         self._chat_thread.start()

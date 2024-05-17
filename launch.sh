@@ -8,7 +8,8 @@ wait_network_online() {
             break
         else
             echo "Network is not online. Waiting..."
-            sleep 1
+            wait_and_play_sound "$SOUNDS_DIR"/sound8.wav
+            sleep 2
         fi
     done
 }
@@ -105,6 +106,7 @@ wait_chassis_online() {
 }
 
 azure_tts() {
+    wait_aplay_finish
     curl --location --request POST "https://$AZURE_SPEECH_REGION.tts.speech.microsoft.com/cognitiveservices/v1" \
     --header "Ocp-Apim-Subscription-Key: $AZURE_SPEECH_KEY" \
     --header 'Content-Type: application/ssml+xml' \
@@ -115,6 +117,24 @@ azure_tts() {
         <mstts:express-as style="affectionate">'$1'</mstts:express-as>
     </voice>
 </speak>' | ffmpeg -i - -acodec pcm_s16le -ar 16000 -ac 1 -f wav - | aplay -D sysdefault:CARD=DELI14870
+}
+
+wait_aplay_finish() {
+    while pgrep -x "aplay" > /dev/null; do
+        echo "aplay is busy, waiting..."
+        sleep 0.5
+    done
+}
+
+wait_and_play_sound() {
+    wait_aplay_finish
+    aplay -D sysdefault:CARD=DELI14870 $1
+}
+
+wait_and_launch_chassis() {
+    wait_chassis_online
+    wait_and_play_sound "$SOUNDS_DIR"/sound7.wav &
+    ros2 launch humanoid_chassis joy_control.py
 }
 
 # catch error
@@ -136,26 +156,26 @@ wait_audio_online
 amixer -q -c DELI14870 sset PCM 100%
 amixer -q -c DELI14870 sset Mic 80%
 echo "Set sound card volumn success!"
-aplay -D sysdefault:CARD=DELI14870 "$SOUNDS_DIR"/sound1.wav
+wait_and_play_sound "$SOUNDS_DIR"/sound1.wav
 
-# wait for chassis devices
-wait_chassis_online
-aplay -D sysdefault:CARD=DELI14870 "$SOUNDS_DIR"/sound7.wav
-
-# launch chassis control node
-ros2 launch humanoid_chassis joy_control.py &
+# wait and launch chassis background
+# wait_and_launch_chassis &
 
 # wait for motor devices
 wait_motors_online
 echo "All devices are connected!"
-aplay -D sysdefault:CARD=DELI14870 "$SOUNDS_DIR"/sound3.wav
+wait_and_play_sound "$SOUNDS_DIR"/sound3.wav
 
 # wait for network
 wait_network_online
-aplay -D sysdefault:CARD=DELI14870 "$SOUNDS_DIR"/sound2.wav
+wait_and_play_sound "$SOUNDS_DIR"/sound2.wav
+
+# ros2 launch humanoid_bringup bringup.py
+# ros2 launch humanoid_bringup bringup_without_chat.py
+# ros2 launch humanoid_bringup bringup_direct.py
 
 # mode select
-aplay -D sysdefault:CARD=DELI14870 "$SOUNDS_DIR"/sound4.wav
+wait_and_play_sound "$SOUNDS_DIR"/sound4.wav
 arecord -f S16_LE -r 16000 -c 1 -d 3 -D sysdefault:CARD=DELI14870 "/tmp/audio_wait_for_asr.wav"
 asr_result=$(curl --location --request POST \
     "https://$AZURE_SPEECH_REGION.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=zh-CN&format=detailed" \
@@ -166,9 +186,9 @@ asr_result=$(curl --location --request POST \
 rm /tmp/audio_wait_for_asr.wav
 
 if [[ $asr_result == *"导演"* ]]; then
-    aplay -D sysdefault:CARD=DELI14870 "$SOUNDS_DIR"/sound6.wav
+    wait_and_play_sound "$SOUNDS_DIR"/sound6.wav
     ros2 launch humanoid_bringup bringup_direct.py
 else
-    aplay -D sysdefault:CARD=DELI14870 "$SOUNDS_DIR"/sound5.wav
+    wait_and_play_sound "$SOUNDS_DIR"/sound5.wav
     ros2 launch humanoid_bringup bringup.py
 fi
