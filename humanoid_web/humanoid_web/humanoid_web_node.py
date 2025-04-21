@@ -8,8 +8,9 @@ import threading
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from .api_types import *
-from humanoid_interface.msg import MotorControl, MotorFeedback, FaceControl, NeckControl, HeadFeedback
-from humanoid_interface.srv import PlayArm, GetArmFrameList
+from humanoid_interface.msg import MotorControl, MotorControlBatch, MotorFeedback, FaceControl, NeckControl, HeadFeedback
+from humanoid_interface.srv import PlayArm, GetArmFrameList, TeachArm, GetActionList, DoAction
+from std_srvs.srv import SetBool, Empty
 
 class HumanoidWebNode(Node):
     face_components = [
@@ -44,10 +45,16 @@ class HumanoidWebNode(Node):
         self._motor_control_publisher = self.create_publisher(MotorControl, "motor_control", rclpy.qos.QoSPresetProfiles.get_from_short_key("SYSTEM_DEFAULT"))
         self._face_control_publisher = self.create_publisher(FaceControl, "face_control", rclpy.qos.QoSPresetProfiles.get_from_short_key("SYSTEM_DEFAULT"))
         self._neck_control_publisher = self.create_publisher(NeckControl, "neck_control", rclpy.qos.QoSPresetProfiles.get_from_short_key("SYSTEM_DEFAULT"))
+        self._motor_control_batch_publisher = self.create_publisher(MotorControlBatch, "motor_control_batch", rclpy.qos.QoSPresetProfiles.get_from_short_key("SYSTEM_DEFAULT"))
         
         # Create ros service client
         self._play_arm_client = self.create_client(PlayArm, "arm/play")
         self._get_frame_list_client = self.create_client(GetArmFrameList, "arm/get_frame_list")
+        self._teach_mode_client = self.create_client(SetBool, "arm/teach_mode")
+        self._calibration_client = self.create_client(Empty, "arm/calibration")
+        self._teach_arm_client = self.create_client(TeachArm, "arm/teach")
+        self._get_action_list_client = self.create_client(GetActionList, "get_action_list")
+        self._do_action_client = self.create_client(DoAction, "do_action")
     
     def _motor_feedback_callback(self, msg: MotorFeedback) -> None:
         self.motor_feedback[msg.id] = msg
@@ -55,9 +62,35 @@ class HumanoidWebNode(Node):
     def _head_feedback_callback(self, msg: HeadFeedback) -> None:
         self.head_feedback = msg
     
+    def teach_arm(self, frame_name: str) -> bool:
+        request = TeachArm.Request()
+        request.frame_name = frame_name
+        if not self._teach_arm_client.wait_for_service(timeout_sec=1.0):
+            return False
+        response = self._teach_arm_client.call(request)
+        return response.result
+    
+    def teach_mode(self, enable: bool) -> bool:
+        request = SetBool.Request()
+        request.data = enable
+        if not self._teach_mode_client.wait_for_service(timeout_sec=1.0):
+            return False
+        response = self._teach_mode_client.call(request)
+        return response.success
+    
+    def calibration_arm(self) -> None:
+        request = Empty.Request()
+        if not self._calibration_client.wait_for_service(timeout_sec=1.0):
+            return False
+        self._calibration_client.call(request)
+        return True
+    
     def control_motor(self, msg: MotorControl):
         self._motor_control_publisher.publish(msg)
     
+    def control_motor_batch(self, msg: MotorControlBatch):
+        self._motor_control_batch_publisher.publish(msg)
+
     def control_face(self, msg: FaceControl):
         self._face_control_publisher.publish(msg)
     
@@ -79,6 +112,21 @@ class HumanoidWebNode(Node):
             return []
         response = self._get_frame_list_client.call(request)
         return response.frames
+
+    def get_actions_list(self) -> List[str]:
+        request = GetActionList.Request()
+        if not self._get_action_list_client.wait_for_service(timeout_sec=1.0):
+            return []
+        response = self._get_action_list_client.call(request)
+        return response.actions
+
+    def do_action(self, action: str) -> bool:
+        request = DoAction.Request()
+        request.action = action
+        if not self._do_action_client.wait_for_service(timeout_sec=1.0):
+            return False
+        response = self._do_action_client.call(request)
+        return response.result
 
 
 humanoid_web_node = None
@@ -141,6 +189,26 @@ def control_motor(command: ApiControlMotorRequest):
     return {"message": "Success"}
 
 
+@app.put("/motor/control_batch")
+def control_motor(commands: ApiControlMotorBatchRequest):
+    msgs = MotorControlBatch()
+    for cmd in commands.control_messages:
+        msg = MotorControl()
+        msg.id = cmd.id
+        if cmd.control_type == ApiControlType.MOTOR_MIT_CONTROL:
+            msg.control_type = MotorControl.MOTOR_MIT_CONTROL
+        if cmd.control_type == ApiControlType.MOTOR_POSITION_CONTROL:
+            msg.control_type = MotorControl.MOTOR_POSITION_CONTROL
+        msg.position = cmd.position
+        msg.velocity = cmd.velocity
+        msg.torque = cmd.torque
+        msg.kp = cmd.kp
+        msg.kd = cmd.kd
+        msgs.control_messages.append(msg)
+    humanoid_web_node.control_motor_batch(msgs)
+    return {"message": "Success"}
+
+
 @app.put("/head/face")
 def control_face(command: ApiControlFaceRequest):
     msg = FaceControl()
@@ -185,6 +253,48 @@ def arm_play_to_frame(command: ApiPlayArmRequest):
 def get_arm_frames() -> ApiGetArmFramesResponse:
     response = ApiGetArmFramesResponse(frames=humanoid_web_node.get_arm_frame_list())
     return response
+
+
+@app.put("/arm/teach_mode")
+def set_arm_teach_mode(command: ApiSetArmTeachModeRequest):
+    result = humanoid_web_node.teach_mode(command.enable)
+    if result:
+        return {"message": "Success"}
+    else:
+        raise HTTPException(status_code=404)
+
+
+@app.get("/arm/calibration")
+def arm_calibration():
+    result = humanoid_web_node.calibration_arm()
+    if result:
+        return {"message": "Success"}
+    else:
+        raise HTTPException(status_code=404)
+
+
+@app.post("/arm/teach")
+def teach_arm(command: ApiArmTeachRequest):
+    result = humanoid_web_node.teach_arm(command.frame_name)
+    if result:
+        return {"message": "Success"}
+    else:
+        raise HTTPException(status_code=404)
+
+
+@app.get("/actions")
+def get_actions() -> ApiGetActionsResponse:
+    response = ApiGetActionsResponse(actions=humanoid_web_node.get_actions_list())
+    return response
+
+
+@app.post("/actions/do")
+def get_actions(command: ApiDoActionRequest):
+    result = humanoid_web_node.do_action(command.action)
+    if result:
+        return {"message": "Success"}
+    else:
+        raise HTTPException(status_code=404)
 
 
 def main(args=None):

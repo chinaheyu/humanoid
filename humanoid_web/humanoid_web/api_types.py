@@ -85,6 +85,28 @@ class ApiControlMotorRequest(BaseModel):
     }
 
 
+class ApiControlMotorBatchRequest(BaseModel):
+    control_messages: List[ApiControlMotorRequest] = []
+    
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "control_messages": [{
+                        "id": 1,
+                        "control_type": ApiControlType.MOTOR_MIT_CONTROL,
+                        "position":  1.5707963267948966,
+                        "velocity": 3.141592653589793,
+                        "torque": 6.283185307179586,
+                        "kp": 3.0,
+                        "kd": 1.0
+                    }]
+                }
+            ]
+        }
+    }
+
+
 class ApiFaceComponents(BaseModel):
     chin_up_down: int = 1000
     eyes_up_down: int = 1500
@@ -197,6 +219,62 @@ class ApiGetArmFramesResponse(BaseModel):
             "examples": [
                 {
                     "frames": ["home", "frame1", "frame2"]
+                }
+            ]
+        }
+    }
+
+
+class ApiSetArmTeachModeRequest(BaseModel):
+    enable: bool
+    
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "enable": "true"
+                }
+            ]
+        }
+    }
+
+
+class ApiArmTeachRequest(BaseModel):
+    frame_name: str
+    
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "frame_name": "frame1"
+                }
+            ]
+        }
+    }
+
+
+class ApiGetActionsResponse(BaseModel):
+    actions: List[str]
+    
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "actions": ["wave_hand", "rolling_eyes"]
+                }
+            ]
+        }
+    }
+
+
+class ApiDoActionRequest(BaseModel):
+    action: str
+    
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "action": "wave_hand"
                 }
             ]
         }

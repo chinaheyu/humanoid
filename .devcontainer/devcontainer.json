@@ -1,6 +1,6 @@
 {
     "name": "humanoid",
-    "image": "ros:foxy",
+    "build": { "dockerfile": "Dockerfile" },
     "workspaceMount": "source=${localWorkspaceFolder},target=/workspace/src,type=bind",
     "workspaceFolder": "/workspace",
     "postCreateCommand": "cp -r /workspace/src/.vscode /workspace && bash src/install_dependency.sh",

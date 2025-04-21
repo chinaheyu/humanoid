@@ -1,23 +1,21 @@
 import rclpy
 from rclpy.node import Node
 import rclpy.qos
-from rclpy.parameter import Parameter
-from rcl_interfaces.msg import SetParametersResult
 import moteus
 from dataclasses import dataclass
 import threading
 import asyncio
-from humanoid_interface.msg import MotorControl, MotorFeedback
-from typing import Dict, List
+from humanoid_interface.msg import MotorControl, MotorFeedback, MotorControlBatch
+from typing import Dict
 from humanoid_interface.srv import PlayArm, GetArmFrameList, TeachArm, PlayArmSequence
 from std_srvs.srv import SetBool, Empty
 from ament_index_python.packages import get_package_share_directory
 import os
-from .joint_trajectory_planner import FifthOrderTrajectory
+from .joint_trajectory_planner import MINCOTrajectory, FifthOrderTrajectory
 import numpy as np
 import json
 import time
-import math
+from itertools import chain
 
 
 @dataclass
@@ -34,9 +32,11 @@ class MotorDataClass:
 class HumanoidArmNode(Node):
     def __init__(self):
         super().__init__('humanoid_arm', allow_undeclared_parameters=True, automatically_declare_parameters_from_overrides=True)
-        
         self._teach_mode = True
-        
+        self._control_thread = threading.Thread(target=asyncio.run, args=[self._control_loop()])
+        self._control_thread.start()
+    
+    def _node_initialize(self):
         self._frames_data_path = os.path.join(get_package_share_directory('humanoid_arm'), 'frames')
         self._play_service = self.create_service(PlayArm, "arm/play", self._play_callback)
         self._play_sequence_service = self.create_service(PlayArmSequence, "arm/play_sequence", self._play_sequence_callback)
@@ -44,16 +44,9 @@ class HumanoidArmNode(Node):
         self._teach_service = self.create_service(TeachArm, "arm/teach", self._teach_callback)
         self._get_frame_list_service = self.create_service(GetArmFrameList, "arm/get_frame_list", self._get_frame_list_callback)
         self._calibration_service = self.create_service(Empty, "arm/calibration", self._calibration_callback)
-        
-        self._motors: Dict[int, MotorDataClass] = {}
-        for i in range(14, 24):
-            self._motors[i] = MotorDataClass(id=i, controller=moteus.Controller(id=i), target=np.zeros(3), feedback=np.zeros(3))
-        
         self._motor_feedback_publisher = self.create_publisher(MotorFeedback, "motor_feedback", rclpy.qos.QoSPresetProfiles.get_from_short_key("SENSOR_DATA"))
         self._motor_control_subscription = self.create_subscription(MotorControl, "motor_control", self._motor_control_callback, rclpy.qos.QoSPresetProfiles.get_from_short_key("SYSTEM_DEFAULT"))
-        
-        self._control_thread = threading.Thread(target=asyncio.run, args=[self._control_loop()])
-        self._control_thread.start()
+        self._motor_control_batch_subscription = self.create_subscription(MotorControlBatch, "motor_control_batch", self._motor_control_batch_callback, rclpy.qos.QoSPresetProfiles.get_from_short_key("SYSTEM_DEFAULT"))
     
     def _calibration_callback(self, request: Empty.Request, response: Empty.Response) -> Empty.Response:
         for motor in self._motors.values():
@@ -74,10 +67,14 @@ class HumanoidArmNode(Node):
         return response
     
     def _teach_mode_callback(self, request: SetBool.Request, response: SetBool.Response) -> SetBool.Response:
+        if not request.data:
+            # Reset all motor target to current position
+            for motor in self._motors.values():
+                motor.target = motor.feedback.copy()
         self._teach_mode = request.data
         response.success = True
         return response
-    
+
     def _get_frame_list_callback(self, request: GetArmFrameList.Request, response: GetArmFrameList.Response) -> GetArmFrameList.Response:
         response.frames = []
         for f in os.listdir(self._frames_data_path):
@@ -105,14 +102,32 @@ class HumanoidArmNode(Node):
             p = traj.plan(t)
             for i in range(len(motor_id)):
                 self._motors[motor_id[i]].target = p[:, i]
-            time.sleep(0.02)
+            time.sleep(0.01)
         return True
 
     def _play_sequence_callback(self, request: PlayArmSequence.Request, response: PlayArmSequence.Response) -> PlayArmSequence.Response:
+        if len(request.frame_name) != len(request.duration):
+            response.result = False
+            return response
+        motor_id = list(self._motors.keys())
+        X = [np.vstack([self._motors[i].feedback[0] for i in motor_id])]
+        T = []
         for frame_name, duration in zip(request.frame_name, request.duration):
-            if not self._play_to_frame(frame_name, duration):
+            try:
+                with open(os.path.join(self._frames_data_path, f'{frame_name}.json'), 'r') as fp:
+                    frame_dict = json.load(fp)
+            except OSError:
                 response.result = False
                 return response
+            X.append(np.vstack([frame_dict[str(i)] for i in motor_id]))
+            T.append(duration)
+        traj = MINCOTrajectory(np.hstack(X), np.array(T))
+        st = time.time()
+        while (t := (time.time() - st)) < np.sum(T):
+            p = traj.plan(t)
+            for i in range(len(motor_id)):
+                self._motors[motor_id[i]].target = p[:, i]
+            time.sleep(0.01)
         response.result = True
         return response
     
@@ -121,41 +136,68 @@ class HumanoidArmNode(Node):
         return response
     
     async def _detect_motor(self, motor: MotorDataClass) -> bool:
-        s = moteus.Stream(motor.controller)
         try:
-            response = await asyncio.wait_for(s.command(b'conf get id.id', allow_any_response=True), 0.1)
-            if int(response.decode('utf-8')) == motor.id:
-                return True
+            await asyncio.wait_for(motor.controller.set_stop(), 1.0)
         except (asyncio.exceptions.TimeoutError, ValueError):
-            pass
-        return False
+            return False
+        return True
 
     def _motor_control_callback(self, msg: MotorControl) -> None:
         if msg.id in self._motors and msg.control_type == MotorControl.MOTOR_POSITION_CONTROL:
             self._motors[msg.id].target[0] = msg.position
 
+    def _motor_control_batch_callback(self, msg: MotorControlBatch) -> None:
+        for m in msg.control_messages:
+            self._motor_control_callback(m)
+    
+    async def _initialize_transport_and_motors(self) -> None:
+        # Create transport
+        self._transport_left = moteus.Fdcanusb('/dev/serial/by-id/usb-mjbots_fdcanusb_826543DB-if00')
+        self._transport_right = moteus.Fdcanusb('/dev/serial/by-id/usb-mjbots_fdcanusb_1EB12734-if00')
+
+        # create motors
+        self._motors: Dict[int, MotorDataClass] = {}
+        for i in range(14, 19):
+            self._motors[i] = MotorDataClass(id=i, controller=moteus.Controller(id=i, transport=self._transport_left), target=np.zeros(3), feedback=np.zeros(3))
+        for i in range(19, 24):
+            self._motors[i] = MotorDataClass(id=i, controller=moteus.Controller(id=i, transport=self._transport_right), target=np.zeros(3), feedback=np.zeros(3))
+
     async def _control_loop(self) -> None:
+        # initialize transport and motors
+        await self._initialize_transport_and_motors()
+        
+        # ros node initialize
+        self._node_initialize()
+
         # Wait motors online
         while rclpy.ok():
-            for m in self._motors.values():
-                if not await self._detect_motor(m):
-                    self.get_logger().error(f'Motor {m.id} not found.')
-                    break
+            offline_motors = [m.id for m in self._motors.values() if await self._detect_motor(m) == False]
+            if offline_motors:
+                self.get_logger().error(f'Motor {offline_motors} not found.')
             else:
                 break
-            asyncio.sleep(1)
+            await asyncio.sleep(1)
 
-        # Create transport
-        transport = moteus.Fdcanusb()
-        
         # initialize motors
         while rclpy.ok():
             try:
-                states = await asyncio.wait_for(transport.cycle([c.controller.make_stop(query=True) for c in self._motors.values()]), 0.1)
+                states = await asyncio.gather(
+                    asyncio.wait_for(self._transport_left.cycle(
+                        [self._motors[i].controller.make_stop(query=True) for i in range(14, 19)]
+                    ), 0.2),
+                    asyncio.wait_for(self._transport_right.cycle(
+                        [self._motors[i].controller.make_stop(query=True) for i in range(19, 24)]
+                    ), 0.2)
+                )
             except asyncio.exceptions.TimeoutError:
-                self.get_logger().warning('Moteus send command timeout.')
+                try:
+                    offline_set = set([i for i in range(14, 24)]) - set([i.id for i in chain(*states)])
+                    self.get_logger().warning(f'Moteus send command timeout, offline: {offline_set}.')
+                except NameError:
+                    self.get_logger().warning(f'Moteus send command timeout.')
+                await asyncio.sleep(0.5)
             else:
-                for state in states:
+                for state in chain(*states):
                     self._motors[state.id].initialized = True
                 if all([m.initialized for m in self._motors.values()]):
                     break
@@ -166,17 +208,42 @@ class HumanoidArmNode(Node):
             try:
                 # Send command
                 if self._teach_mode:
-                    states = await asyncio.wait_for(transport.cycle([c.controller.make_brake(query=True) for c in self._motors.values()]), 0.1)
+                    states = await asyncio.gather(
+                        asyncio.wait_for(self._transport_left.cycle(
+                            [self._motors[i].controller.make_stop(query=True) for i in range(14, 19)]
+                        ), 0.2),
+                        asyncio.wait_for(self._transport_right.cycle(
+                            [self._motors[i].controller.make_stop(query=True) for i in range(19, 24)]
+                        ), 0.2)
+                    )
                 else:
-                    states = await asyncio.wait_for(transport.cycle([
-                        c.controller.make_position(
-                            position=((-c.target[0] if c.reverse else c.target[0]) + c.offset) / (2 * np.pi),
-                            velocity=c.target[1] / (2 * np.pi),
-                            maximum_torque=8.0,
-                            query=True
-                        )
-                        for c in self._motors.values()
-                    ]), 0.1)
+                    # Check joint limit
+                    if any([abs(c.target[0]) > 6.28 for c in self._motors.values()]):
+                        self.get_logger().error(f'Some target of arm motors is greater than 6.28, ignored.')
+                        continue
+
+                    states = await asyncio.gather(
+                        asyncio.wait_for(self._transport_left.cycle([
+                                self._motors[i].controller.make_position(
+                                    position=((-self._motors[i].target[0] if self._motors[i].reverse else self._motors[i].target[0]) + self._motors[i].offset) / (2 * np.pi),
+                                    velocity=0.0,
+                                    maximum_torque=8.0,
+                                    query=True
+                                )
+                                for i in range(14, 19)
+                            ]
+                        ), 0.2),
+                        asyncio.wait_for(self._transport_right.cycle([
+                                self._motors[i].controller.make_position(
+                                    position=((-self._motors[i].target[0] if self._motors[i].reverse else self._motors[i].target[0]) + self._motors[i].offset) / (2 * np.pi),
+                                    velocity=0.0,
+                                    maximum_torque=8.0,
+                                    query=True
+                                )
+                                for i in range(19, 24)
+                            ]
+                        ), 0.2)
+                    )
             except asyncio.exceptions.TimeoutError:
                 timeout_counter += 1
                 self.get_logger().warning(f'Moteus send command timeout {timeout_counter}.')
@@ -185,7 +252,7 @@ class HumanoidArmNode(Node):
                     break
             else:
                 timeout_counter = 0
-                for state in states:
+                for state in chain(*states):
                     # mapping motor position
                     position = state.values[moteus.Register.POSITION] * 2 * np.pi - self._motors[state.id].offset
                     if self._motors[state.id].reverse:
@@ -206,16 +273,13 @@ class HumanoidArmNode(Node):
                         )
                     )
 
-            # wait for 20ms
-            await asyncio.sleep(0.02)
-
         # Stop motors
-        states = transport.cycle([
-            c.controller.make_stop(
-                query=True
-            )
-            for c in self._motors.values()
-        ])
+        await self._transport_left.cycle(
+            [self._motors[i].controller.make_stop() for i in range(14, 19)]
+        ),
+        await self._transport_right.cycle(
+            [self._motors[i].controller.make_stop() for i in range(19, 24)]
+        )
 
 
 def main(args=None):

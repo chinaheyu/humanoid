@@ -12,7 +12,6 @@ import random
 import string
 
 
-
 class AuthorizeUrl:
     def __init__(self, api_key, api_secret, host, path):
         self._api_key = api_key
@@ -67,6 +66,8 @@ class SparkDesk:
         self._chat_history = []
         self._total_response = ""
         self._response_queue = queue.Queue()
+        self._chat_thread = None
+        self._breaking_flag = False
 
     def _generate_params(self):
         data = {
@@ -91,6 +92,9 @@ class SparkDesk:
         return data
 
     def _on_message(self, ws, message):
+        if self._breaking_flag:
+            ws.close()
+            self._response_queue.put(None)
         msg = json.loads(message)
         code = msg["header"]["code"]
         if code != 0:
@@ -101,6 +105,9 @@ class SparkDesk:
             self._total_tokens.append(msg["payload"]["usage"]["text"]["total_tokens"])
             self._response_queue.put(None)
             ws.close()
+    
+    def break_stream(self):
+        self._breaking_flag = True
 
     @property
     def tokens(self):
@@ -114,6 +121,7 @@ class SparkDesk:
 
     def _on_open(self, ws):
         self._total_response = ""
+        self._breaking_flag = False
         ws.send(json.dumps(self._generate_params()))
 
     def reset(self):
@@ -133,13 +141,20 @@ class SparkDesk:
         return self._total_response
 
     def chat_stream(self, question, timeout=10.0):
-        chat_thread = threading.Thread(target=self.chat, args=[question])
-        chat_thread.start()
+        if self._chat_thread is not None:
+            if self._chat_thread.is_alive():
+                self._chat_thread.join()
+        if not self._response_queue.empty():
+            with self._response_queue.mutex:
+                self._response_queue.queue.clear()
+
+        self._chat_thread = threading.Thread(target=self.chat, args=[question])
+        self._chat_thread.start()
         while True:
             try:
                 response = self._response_queue.get(timeout=timeout)
             except queue.Empty:
-                chat_thread.join()
+                self._chat_thread.join()
                 self._chat_history.clear()
                 yield "非常抱歉，我还无法回答您的问题。"
                 break

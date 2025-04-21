@@ -21,7 +21,8 @@ setup(
     entry_points={
         'console_scripts': [
             'humanoid_chat_node = humanoid_chat.humanoid_chat_node:main',
-            'chat_demo = humanoid_chat.chat_demo:main'
+            'chat_demo = humanoid_chat.chat_demo:main',
+            'director_demo = humanoid_chat.director_demo:main'
         ],
     },
 )

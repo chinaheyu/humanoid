@@ -24,12 +24,22 @@ def generate_launch_description():
         Node(
             package='humanoid_chat',
             executable='humanoid_chat_node',
-            name='humanoid_chat'
+            name='humanoid_chat',
+            output='screen',
+            emulate_tty=True
         ),
         Node(
             package='humanoid_arm',
             executable='humanoid_arm_node',
             name='humanoid_arm'
+        ),
+        Node(
+            package='joy', executable='joy_node', name='joy_node',
+            parameters=[{
+                'dev': '/dev/input/js0',
+                'deadzone': 0.3,
+                'autorepeat_rate': 20.0,
+            }]
         ),
         Node(
             package='robot_state_publisher',
