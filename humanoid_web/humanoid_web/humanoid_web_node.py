@@ -8,7 +8,7 @@ import threading
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from .api_types import *
-from humanoid_interface.msg import MotorControl, MotorFeedback, FaceControl, NeckControl, HeadFeedback
+from humanoid_interface.msg import MotorControl, MotorControlBatch, MotorFeedback, FaceControl, NeckControl, HeadFeedback
 from humanoid_interface.srv import PlayArm, GetArmFrameList, TeachArm, GetActionList, DoAction
 from std_srvs.srv import SetBool, Empty
 
@@ -45,6 +45,7 @@ class HumanoidWebNode(Node):
         self._motor_control_publisher = self.create_publisher(MotorControl, "motor_control", rclpy.qos.QoSPresetProfiles.get_from_short_key("SYSTEM_DEFAULT"))
         self._face_control_publisher = self.create_publisher(FaceControl, "face_control", rclpy.qos.QoSPresetProfiles.get_from_short_key("SYSTEM_DEFAULT"))
         self._neck_control_publisher = self.create_publisher(NeckControl, "neck_control", rclpy.qos.QoSPresetProfiles.get_from_short_key("SYSTEM_DEFAULT"))
+        self._motor_control_batch_publisher = self.create_publisher(MotorControlBatch, "motor_control_batch", rclpy.qos.QoSPresetProfiles.get_from_short_key("SYSTEM_DEFAULT"))
         
         # Create ros service client
         self._play_arm_client = self.create_client(PlayArm, "arm/play")
@@ -87,6 +88,9 @@ class HumanoidWebNode(Node):
     def control_motor(self, msg: MotorControl):
         self._motor_control_publisher.publish(msg)
     
+    def control_motor_batch(self, msg: MotorControlBatch):
+        self._motor_control_batch_publisher.publish(msg)
+
     def control_face(self, msg: FaceControl):
         self._face_control_publisher.publish(msg)
     
@@ -182,6 +186,26 @@ def control_motor(command: ApiControlMotorRequest):
     msg.kp = command.kp
     msg.kd = command.kd
     humanoid_web_node.control_motor(msg)
+    return {"message": "Success"}
+
+
+@app.put("/motor/control_batch")
+def control_motor(commands: ApiControlMotorBatchRequest):
+    msgs = MotorControlBatch()
+    for cmd in commands.control_messages:
+        msg = MotorControl()
+        msg.id = cmd.id
+        if cmd.control_type == ApiControlType.MOTOR_MIT_CONTROL:
+            msg.control_type = MotorControl.MOTOR_MIT_CONTROL
+        if cmd.control_type == ApiControlType.MOTOR_POSITION_CONTROL:
+            msg.control_type = MotorControl.MOTOR_POSITION_CONTROL
+        msg.position = cmd.position
+        msg.velocity = cmd.velocity
+        msg.torque = cmd.torque
+        msg.kp = cmd.kp
+        msg.kd = cmd.kd
+        msgs.control_messages.append(msg)
+    humanoid_web_node.control_motor_batch(msgs)
     return {"message": "Success"}
 
 

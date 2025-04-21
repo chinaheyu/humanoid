@@ -1,14 +1,12 @@
 import rclpy
 from rclpy.node import Node
 import rclpy.qos
-from rclpy.parameter import Parameter
-from rcl_interfaces.msg import SetParametersResult
 import moteus
 from dataclasses import dataclass
 import threading
 import asyncio
-from humanoid_interface.msg import MotorControl, MotorFeedback
-from typing import Dict, List
+from humanoid_interface.msg import MotorControl, MotorFeedback, MotorControlBatch
+from typing import Dict
 from humanoid_interface.srv import PlayArm, GetArmFrameList, TeachArm, PlayArmSequence
 from std_srvs.srv import SetBool, Empty
 from ament_index_python.packages import get_package_share_directory
@@ -48,6 +46,7 @@ class HumanoidArmNode(Node):
         self._calibration_service = self.create_service(Empty, "arm/calibration", self._calibration_callback)
         self._motor_feedback_publisher = self.create_publisher(MotorFeedback, "motor_feedback", rclpy.qos.QoSPresetProfiles.get_from_short_key("SENSOR_DATA"))
         self._motor_control_subscription = self.create_subscription(MotorControl, "motor_control", self._motor_control_callback, rclpy.qos.QoSPresetProfiles.get_from_short_key("SYSTEM_DEFAULT"))
+        self._motor_control_batch_subscription = self.create_subscription(MotorControlBatch, "motor_control_batch", self._motor_control_batch_callback, rclpy.qos.QoSPresetProfiles.get_from_short_key("SYSTEM_DEFAULT"))
     
     def _calibration_callback(self, request: Empty.Request, response: Empty.Response) -> Empty.Response:
         for motor in self._motors.values():
@@ -146,6 +145,10 @@ class HumanoidArmNode(Node):
     def _motor_control_callback(self, msg: MotorControl) -> None:
         if msg.id in self._motors and msg.control_type == MotorControl.MOTOR_POSITION_CONTROL:
             self._motors[msg.id].target[0] = msg.position
+
+    def _motor_control_batch_callback(self, msg: MotorControlBatch) -> None:
+        for m in msg.control_messages:
+            self._motor_control_callback(m)
     
     async def _initialize_transport_and_motors(self) -> None:
         # Create transport
@@ -215,8 +218,8 @@ class HumanoidArmNode(Node):
                     )
                 else:
                     # Check joint limit
-                    if any([abs(c.target[0]) > 3.0 for c in self._motors.values()]):
-                        # self.get_logger().error(f'Some target of arm motors is greater than 3.0, ignored.')
+                    if any([abs(c.target[0]) > 6.28 for c in self._motors.values()]):
+                        self.get_logger().error(f'Some target of arm motors is greater than 6.28, ignored.')
                         continue
 
                     states = await asyncio.gather(

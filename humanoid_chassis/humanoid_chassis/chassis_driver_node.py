@@ -3,7 +3,6 @@ import rclpy.qos
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
-import signal
 import serial
 import serial.tools.list_ports
 import math
@@ -53,9 +52,6 @@ class ChassisDriverNode(Node):
 
         self.publish_feedback_thread = threading.Thread(target=self.publish_feedback)
         self.publish_feedback_thread.start()
-
-        signal.signal(signal.SIGINT, self.signal_handler)
-        signal.signal(signal.SIGTERM, self.signal_handler)
 
     def initialize(self):
         self.serial_device.write(bytes.fromhex('01442318331800000000DD0C'))
@@ -140,9 +136,6 @@ class ChassisDriverNode(Node):
             self.serial_device.close()
         self.destroy_node()
         rclpy.shutdown()
-
-    def signal_handler(self, sig, frame):
-        self.clean_up_and_exit()
 
 
 def main(args=None):
